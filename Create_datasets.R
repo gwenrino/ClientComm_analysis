@@ -1,3 +1,4 @@
+library(remoter)
 remoter::client("localhost", port = 55556)
 
 library(RPostgreSQL)

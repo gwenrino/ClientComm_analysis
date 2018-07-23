@@ -1,0 +1,69 @@
+---
+title: "ClientComm Data Analysis 2"
+author: "Gwen Rino and Eric Giannella"
+date: "7/9/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## OVERVIEW AND KEY OUTCOMES
+
+In our continued work on the Baltimore ClientComm data, we focused on refining our construction of variables and applying them to all the available data (1571 relationshipships, 118 of which resulted in supervision failure) in order to build a more meaningful, robust model.
+
+### Key Outcomes
+
+1) Relationships in which a client sent even one message had significantly better outcomes.     
+2) Relationships in which the PO utilized the message scheduling feature had better outcomes, and longer time differences between creating and sending a message had a more positive effect than shorter time differences. This effect is not statistically significant, but it is still meaningful.     
+3) Two variables (mention of future dates in a message and use of the message scheduling feature) are reconstructed for this analysis and are now much more meaningful; see details below. All future modeling should use these versions of the variables.    
+4) We are not yet in a position to make recommendations regarding sentiment analysis; see details below.
+
+## DATA IMPROVEMENTS
+
+### Message Scheduling
+
+Tomas confirmed that the time difference between a user's creation of a message and it being sent is a good proxy of a user's utilization of the message scheduling feature. We rebuilt the variable and defined usage as any time difference greater than zero. With this definition, we recalculated how much the feature is used and got results that better match Manya's observations from Mixpanel: 54% of relationships include at least one utilization of the feature, 42% of relationships include a message that was created at least 48 hours before it was sent, and 24% of relationships include a message that was created at least 1 week before it was sent. 
+
+### Future Dates
+
+The rebuilt variable that counts the number of future dates mentioned within a user/client relationship is improved in two ways: announcements of dates of future office closures are filtered out, and a single message that includes more than one future date is only counted as one instance of a mention of a future date. These two refinements focus our analysis on the most meaningful data: How often does a PO send a message that reminds a client of an upcoming appointment?
+
+## ANALYTICAL STORY
+
+We found a statistically significant association between clients who sent at least one message and positive supervision outcomes. A client's chances of supervision failure decrease over 30% (from 8.9% to 6.0%) when s/he sends one or more messages through ClientComm.
+
+We found a meaningful (but not statistically significant) association between a PO's usage of the message scheduling feature and supervision success, with longer time differences between creating and sending a message increasing the positive effect. A client's chances of supervision failure decrease almost 7% (from 7.6% to 7.1%) if her/his PO schedules a message a week or more ahead vs. no scheduled messages.
+
+We found a meaningful (but not statistically significant) association between mentions of future dates and supervision outcomes. However, the effect of this variable confounds the effect of the variable measuring usage of the message scheduling feature, which makes intuitive sense because most scheduled messages will include mention of a future date. Given that mentions of future dates are more common than usage of the message scheduling feature, we chose to include only the usage of the message scheduling feature in the model, as there seems to be more opportunity for feature development in this area.
+
+We found a very strong correlation between the maximum polarity of user messages within a relationship and positive supervision outcomes. However, we chose not to include this variable in the model at this time for reasons described below.
+
+The final model regresses the outcome variable supervision_failure against two variables (client_msg_count > 0 and max_scheduled_diff > 72) while correcting for the influence of individual POs.
+
+## IMPROVING SENTIMENT ANALYSIS
+
+When we spot checked the maximum polarity scores within several representative user/client relationships, the results didn't make sense to us; they seemed inconsistent and difficult to trust. Given these results, we would like to back up and take a broader look at sentiment analysis concepts, tools, and applications before going forward in the exploration of the ClientComm data.
+
+That said, the strong correlation between high maximum polarity user messages and positive outcomes is intriguing because it suggests that POs may be able to increase supervision success by using positive language, an idea also promoted by EBPs. We are excited to learn more about what sentiment analysis may reveal.
+
+## NEXT STEPS
+
+1. **Investigate the possibility of an association between time of day/day of week of PO texts and supervision outcome.**    
+- Develop time of day circular predictor variable    
+- Day of week variable already built
+  
+  
+2. **Investigate conditions under which clients send their first texts.**    
+- client_msg_count > 0 as target variable       
+  
+  
+3. **Longer range project: Continue investigation of sentiment analysis**    
+- Learn about NLP generally and sentiment analysis specifically    
+- Read reviews of sentiment analysis tools, select several to test    
+- Test selected sentiment analysis tool (including TextBlob) on individual texts from the ClientComm dataset    
+- Choose best tool for our application, do the sentiment analysis, and investigate associations between sentiment and supervision outcome
+
+
+

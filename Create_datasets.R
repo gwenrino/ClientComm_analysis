@@ -33,11 +33,16 @@ messages$created_at <- as.POSIXlt(messages$created_at, tz = "America/New_York")
 messages$send_at <- as.POSIXlt(messages$send_at, tz = "America/New_York")
 messages$client_created_at <- as.POSIXlt(messages$client_created_at, tz = "America/New_York")
 
-messages$created_at_backup <- as.character(messages$created_at)
-messages$send_at_backup <- as.character(messages$send_at)
-messages$client_created_at_backup <- as.character(messages$client_created_at)
+messages$created_at_backup <- paste("TTT", as.character(messages$created_at), "TTT")
+messages$send_at_backup <- paste("TTT", as.character(messages$send_at), "TTT")
+messages$client_created_at_backup <- paste("TTT", as.character(messages$client_created_at), "TTT")
+
+messages$created_at_num <- as.numeric(messages$created_at)
+messages$send_at_num <- as.numeric(messages$send_at)
+messages$client_created_at_num <- as.numeric(messages$client_created_at)
 
 messages[grepl("Srour", messages$body),] # check magic time zone message
+as.POSIXlt(1508341259, tz = "America/New_York", origin = '1970-01-01')
 
 save.image("/home/gwen/remote.Rdata")
 

@@ -322,6 +322,8 @@ temp4$urgency <- as.numeric(grepl("asap", temp4$body, ignore.case = TRUE) |
                               grepl("imperative", temp4$body, ignore.case = TRUE) |
                               grepl("now", temp4$body, ignore.case = TRUE)) # Urgency
 
+temp4$yelling <- as.numeric(grepl("^[^a-z]*$", temp4$body)) # Yelling
+
 # need to add variable for client name, PO name, template
 # ?please respond, info
 
@@ -334,11 +336,6 @@ temp4$client_id <- as.factor(temp4$client_id)
 user_msgs_qualities <- temp4
 
 cache('user_msgs_qualities')
-
-
-
-
-
 
 
 

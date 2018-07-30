@@ -1,4 +1,4 @@
-Sys.setenv(TZ='GMT')
+Sys.setenv(TZ='America/New_York')
 
 ####################
 ### TEXT LEVEL  ###
@@ -10,11 +10,11 @@ surveys <- read.csv(file = file.path("data", "surveys.csv"))
 messages <- data.frame(messages)
 messages <- unique(messages)
 
-messages$send_at <- as.POSIXct(as.character(messages$send_at), tz = "America/New_York")
-messages$created_at <- as.POSIXct(as.character(messages$created_at), tz = "America/New_York")
-messages$client_created_at <- as.POSIXct(as.character(messages$client_created_at), tz = "America/New_York")
-
 temp <- messages
+
+temp$created_at <- as.POSIXct(temp$created_at_num, origin = '1970-01-01')
+temp$send_at <- as.POSIXct(temp$send_at_num, origin = '1970-01-01')
+temp$client_created_at <- as.POSIXct(temp$client_created_at_num, origin = '1970-01-01')
 
 # Merge messages & message_level_sentiments
 
@@ -32,13 +32,7 @@ temp$scheduled_diff[temp$scheduled_diff < 0] <- 0
 temp$scheduled_diff[temp$scheduled_diff > 336] <- 336
 
 # Day of week
-temp$send_at_DoW <- wday(as.Date(temp$send_at), label=TRUE)
-
-# Work around terrible time zone problem
-temp$created_at <- as.POSIXct(temp$created_at_backup, tz = "America/New_York")
-temp$send_at <- as.POSIXct(temp$send_at_backup, tz = "America/New_York")
-temp$client_created_at <- as.POSIXct(temp$client_created_at_backup, tz = "America/New_York")
-
+temp$send_at_DoW <- wday(temp$send_at, label = TRUE)
 
 # Time of day (bins)
 temp$send_at_time <- hour(temp$send_at) + 
@@ -68,9 +62,13 @@ temp <- temp[temp$system_messages == 0,]
 # Create dataframes
 all_messages <- temp
 user_messages <- temp[temp$inbound == "False",]
+client_messages <- temp[temp$inbound == "True",]
+
+rm(temp)
 
 cache('all_messages')
 cache('user_messages')
+cache('client_messages')
 
 ##########################
 ### RELATIONSHIP LEVEL ###
@@ -117,12 +115,12 @@ DoW_message_count$Wkd_messages <- DoW_message_count$Sun_messages + DoW_message_c
 # Number of messages by time of day
 ToD_message <- spread(user_messages, send_at_ToD_bins, message_i, fill = 0)
 
-names(ToD_message)[32] <- "Missing"
+names(ToD_message)[35] <- "ToD_Missing"
 
-ToD_message_count <- aggregate(cbind(ToD_message[,c("Night", "Morning", "Afternoon", "Evening", "Missing")]), by = list(ToD_message$client_id,
+ToD_message_count <- aggregate(cbind(ToD_message[,c("Night", "Morning", "Afternoon", "Evening", "ToD_Missing")]), by = list(ToD_message$client_id,
                                                                      ToD_message$user_id), FUN = sum)
 colnames(ToD_message_count) <- c("client_id","user_id", "Night_messages", "Morning_messages", "Afternoon_messages", 
-                                 "Evening_messages", "Missing_messages")
+                                 "Evening_messages", "ToD_Missing_messages")
 
 # Number of future appointment dates
 number_appt_reminders <- aggregate(user_messages$future_appointment_date, 
@@ -226,5 +224,121 @@ temp1$client_id <- as.factor(temp1$client_id)
 
 # Create dataframe
 cc.dtf <- temp1
+rm(temp1)
 
 cache('cc.dtf')
+
+################################################
+### TEXT LEVEL: WHICH USER MSGS GET REPLIES? ###
+################################################
+
+client_messages$client_id <- as.factor(as.character(client_messages$client_id))
+user_messages$client_id <- as.factor(as.character(user_messages$client_id))
+
+first_client_reply <- client_messages %>% group_by(client_id) %>% summarize(min_time = min(send_at_num)) # time of first client msg
+
+temp2 <- user_messages
+
+temp2 <- merge(temp2, first_client_reply, by = c("client_id"))
+
+setdiff(first_client_reply$client_id, user_messages$client_id)
+setdiff(first_client_reply$client_id, temp2$client_id)
+
+temp2 <- temp2 %>% filter(send_at_num < min_time) # PO messages leading to a client reply
+
+setdiff(first_client_reply$client_id, temp2$client_id) # there are still about 100 clients that don't come through into temp2
+# ground check looks ok -- 1113, 1230, 1339, 1383 all have first msg in relationship inbound
+
+msgs_leading_to_reply <- temp2
+
+first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id) %>% slice(which.max(send_at_num)) # the first user msg that received a client reply (might be initial msg, might not)
+
+# number_msgs_to_reply <- aggregate(msgs_leading_to_reply$client_id, by = list(msgs_leading_to_reply$client_id), FUN = length) # how many user msgs before the first client msg
+# colnames(number_msgs_to_reply) <- c("client_id", "number_to_reply")
+
+# number_msgs_to_reply$reply_to_initial <- as.numeric(number_msgs_to_reply$number_to_reply == 1) # client replied to first user msg (T/F)
+
+# ultimately_replied <- merge(ultimately_replied, number_msgs_to_reply, by = c("client_id")) # all user msgs that eventually received a reply
+
+# initial_msg_replied <- filter(first_msg_replied, reply_to_initial == 1) # initial user msgs that received a client reply
+
+## NEW APPROACH
+
+# indicator: is this user msg a first msg? 
+
+initial_msg <- user_messages %>% group_by(client_id) %>% summarize(initial_msg = min(send_at_num))
+temp4 <- merge(user_messages, initial_msg, by = c("client_id"))
+temp4 <- temp4 %>% mutate(initial_msg_indicator = case_when(initial_msg == send_at_num ~ 1,
+                                                            initial_msg != send_at_num ~ 0))
+
+# indicator: did the client respond to this msg?
+
+first_msg_replied <- first_msg_replied[c("client_id","send_at_num")]
+first_msg_replied$first_msg_replied_i <- 1
+
+temp4 <- merge(temp4, first_msg_replied, by = c("client_id", "send_at_num"), all.x = TRUE, all.y = TRUE)
+temp4$first_msg_replied_i[is.na(temp4$first_msg_replied_i)] <- 0
+
+temp4 <- temp4[c("client_id", "user_id", "id", "body", "inbound", "created_at", "send_at", 
+               "created_at_backup", "send_at_backup", "created_at_num", "send_at_num",
+               "initial_msg_indicator", "first_msg_replied_i", "send_at_DoW", "send_at_ToD_bins",
+               "future_appointment_date", "scheduled_diff")]
+
+# add variables of interest
+
+
+temp4$greeting <- as.numeric(grepl("hello", temp4$body, ignore.case = TRUE) | 
+                               grepl("good morning", temp4$body, ignore.case = TRUE) |
+                               grepl("good afternoon", temp4$body, ignore.case = TRUE) |
+                               grepl("good evening", temp4$body, ignore.case = TRUE)) # Greeting
+
+temp4$closing <- as.numeric(grepl("have a great", temp4$body, ignore.case = TRUE) | 
+                              grepl("have a good", temp4$body, ignore.case = TRUE) | 
+                              grepl("have a blessed", temp4$body, ignore.case = TRUE) | 
+                              grepl("enjoy", temp4$body, ignore.case = TRUE) | 
+                              grepl("stay safe", temp4$body, ignore.case = TRUE)) # Closing
+
+temp4$polite <- as.numeric(grepl("please", temp4$body, ignore.case = TRUE) |
+                             grepl("thank you", temp4$body, ignore.case = TRUE) |
+                             grepl("courtesy", temp4$body, ignore.case = TRUE) |
+                             grepl("friendly", temp4$body, ignore.case = TRUE)) # Polite
+
+temp4$business <- as.numeric(grepl("verification", temp4$body, ignore.case = TRUE) |
+                               grepl("documentation", temp4$body, ignore.case = TRUE) |
+                               grepl("letter", temp4$body, ignore.case = TRUE) |
+                               grepl("document", temp4$body, ignore.case = TRUE)) # Business
+
+temp4$problem <- as.numeric(grepl("warrant", temp4$body, ignore.case = TRUE) |
+                              grepl("failure", temp4$body, ignore.case = TRUE) |
+                              grepl("arrest", temp4$body, ignore.case = TRUE) |
+                              grepl("missed", temp4$body, ignore.case = TRUE) |
+                              grepl("violation", temp4$body, ignore.case = TRUE) |
+                              grepl("compliance", temp4$body, ignore.case = TRUE)) # Problem
+
+temp4$urgency <- as.numeric(grepl("asap", temp4$body, ignore.case = TRUE) |
+                              grepl("a.s.a.p.", temp4$body, ignore.case = TRUE) |
+                              grepl("immediately", temp4$body, ignore.case = TRUE) |
+                              grepl("right away", temp4$body, ignore.case = TRUE) |
+                              grepl("imperative", temp4$body, ignore.case = TRUE) |
+                              grepl("now", temp4$body, ignore.case = TRUE)) # Urgency
+
+# need to add variable for client name, PO name, template
+# ?please respond, info
+
+# Final tidy up
+temp4$PO <- as.factor(temp4$user_id)
+temp4$PO <- relevel(temp4$PO, ref="31")
+temp4$user_id <- as.factor(temp4$user_id)
+temp4$client_id <- as.factor(temp4$client_id)
+
+user_msgs_qualities <- temp4
+
+cache('user_msgs_qualities')
+
+
+
+
+
+
+
+

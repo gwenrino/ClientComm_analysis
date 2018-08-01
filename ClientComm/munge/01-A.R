@@ -344,45 +344,33 @@ temp4$yelling <- as.numeric(grepl("^[^a-z]*$", temp4$body)) # Yelling
 temp4$has_client_last_name <- stri_detect(temp4$body, fixed = temp4$client_last_name)
 temp4$has_client_first_name <- stri_detect(temp4$body, fixed = temp4$client_first_name)
 
-temp4 <- temp4 %>% mutate(has_client_name = 
-                            case_when((temp4$has_client_last_name + temp4$has_client_first_name) == 0 ~ 0,
-                                      (temp4$has_client_last_name + temp4$has_client_first_name) != 0 ~ 1))
+temp4$has_client_name <- as.numeric(temp4$has_client_last_name | temp4$has_client_first_name)
 
 # user name
 temp4$has_user_last_name <- stri_detect(temp4$body, fixed = temp4$user_last_name)
 temp4$has_user_first_name <- stri_detect(temp4$body, fixed = temp4$user_first_name)
 
-temp4 <- temp4 %>% mutate(has_user_name = 
-                            case_when((temp4$has_user_last_name + temp4$has_user_first_name) == 0 ~ 0,
-                                      (temp4$has_user_last_name + temp4$has_user_first_name) != 0 ~ 1))
+temp4$has_user_name <- as.numeric(temp4$has_user_last_name | temp4$has_user_first_name)
 
 ## message similarity
 
-user_messages_copy <- user_messages
-
-temp6 <- user_messages_copy %>% full_join(user_messages, by = "user_id") 
+temp6 <- user_messages %>% full_join(user_messages, by = "user_id") 
 temp7 <- temp6 %>% filter(client_id.x != client_id.y)
 
 temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$body.y))
 
-## good to here
+max_reuse_score <- temp7 %>% group_by(client_id.x, send_at_num.x) %>% summarize(max_reuse_score = max(reuse_score))
 
-
-
-
-max_reuse_score <- aggregate(temp7$reuse_score, by = list(temp7$client_id.x, temp7$sent_at_num.x), FUN = max)
-colnames(max_reuse_score) <- c("client_id", "sent_at_num", "max_reuse_score")
-
-
-# once I get the max reuse score, merge it with temp4
+temp8 <- merge(temp4, max_reuse_score, by.x = c("client_id", "send_at_num"), by.y = c("client_id.x", "send_at_num.x"),
+               all.x = FALSE, all.y = FALSE)
 
 # Final tidy up
-temp4$PO <- as.factor(temp4$user_id)
-temp4$PO <- relevel(temp4$PO, ref="31")
-temp4$user_id <- as.factor(temp4$user_id)
-temp4$client_id <- as.factor(temp4$client_id)
+temp8$PO <- as.factor(temp8$user_id)
+temp8$PO <- relevel(temp8$PO, ref="31")
+temp8$user_id <- as.factor(temp8$user_id)
+temp8$client_id <- as.factor(temp8$client_id)
 
-user_msgs_qualities <- temp4
+user_msgs_qualities <- temp8
 
 cache('user_msgs_qualities')
 

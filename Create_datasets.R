@@ -28,6 +28,10 @@ messages <- data.frame(dbGetQuery(con, "select rr.client_id, rr.user_id, m.id, m
                                   LEFT JOIN attachments a ON m.id = a.message_id
                                   order by c.id asc"))
 
+clients <- data.frame(dbGetQuery(con, "SELECT * FROM clients"))
+
+users <- data.frame(dbGetQuery(con, "SELECT * FROM users"))
+
 # Solving the time zone problem
 messages$created_at <- as.POSIXlt(messages$created_at, tz = "America/New_York")
 messages$send_at <- as.POSIXlt(messages$send_at, tz = "America/New_York")
@@ -48,3 +52,5 @@ save.image("/home/gwen/remote.Rdata")
 
 write.csv(messages, "/home/gwen/messages.csv", row.names = FALSE)
 write.csv(surveys, "/home/gwen/surveys.csv", row.names = FALSE)
+write.csv(clients, "/home/gwen/clients.csv", row.names = FALSE)
+write.csv(users, "/home/gwen/users.csv", row.names = FALSE)

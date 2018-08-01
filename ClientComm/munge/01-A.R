@@ -6,9 +6,25 @@ Sys.setenv(TZ='America/New_York')
 
 messages <- read.csv(file = file.path("data", "messages.csv"))
 surveys <- read.csv(file = file.path("data", "surveys.csv"))
+users <- read.csv(file = file.path("data", "users.csv"))
+clients <- read.csv(file = file.path("data", "clients.csv"))
 
 messages <- data.frame(messages)
 messages <- unique(messages)
+
+users <- users[,c("id", "full_name")]
+clients <- clients[,c(1:3)]
+
+users$user_first_name <- sapply(strsplit(as.character(users$full_name), ' '), function(x) x[1])
+users$user_last_name <- sapply(strsplit(as.character(users$full_name), ' '), function(x) x[length(x)])
+users <- subset(users, user_first_name != "OLD")
+users <- subset(users, user_first_name != "ClientComm")
+
+names(clients)[2] <- "client_first_name"
+names(clients)[3] <- "client_last_name"
+
+messages <- merge(messages, users, by.x = "user_id", by.y = "id", all.x = TRUE, all.y = FALSE)
+messages <- merge(messages, clients, by.x = "client_id", by.y = "id", all.x = TRUE, all.y = FALSE)
 
 temp <- messages
 
@@ -56,15 +72,10 @@ temp$future_appointment_date <- as.numeric(temp$has_future_date == 1 & temp$offi
 temp$system_messages <- as.numeric(grepl("Updated the phone number to", temp$body) | grepl("was transferred to you", temp$body))
 temp <- temp[temp$system_messages == 0,]
 
-# Delete unneeded variables
-# temp <- temp[,c(9,10,1,17,18,26,19,14,32,27,28,29,6,7,11)]
-
 # Create dataframes
 all_messages <- temp
 user_messages <- temp[temp$inbound == "False",]
 client_messages <- temp[temp$inbound == "True",]
-
-rm(temp)
 
 cache('all_messages')
 cache('user_messages')
@@ -115,7 +126,7 @@ DoW_message_count$Wkd_messages <- DoW_message_count$Sun_messages + DoW_message_c
 # Number of messages by time of day
 ToD_message <- spread(user_messages, send_at_ToD_bins, message_i, fill = 0)
 
-names(ToD_message)[35] <- "ToD_Missing"
+names(ToD_message)[40] <- "ToD_Missing"
 
 ToD_message_count <- aggregate(cbind(ToD_message[,c("Night", "Morning", "Afternoon", "Evening", "ToD_Missing")]), by = list(ToD_message$client_id,
                                                                      ToD_message$user_id), FUN = sum)
@@ -224,7 +235,6 @@ temp1$client_id <- as.factor(temp1$client_id)
 
 # Create dataframe
 cc.dtf <- temp1
-rm(temp1)
 
 cache('cc.dtf')
 
@@ -251,7 +261,7 @@ setdiff(first_client_reply$client_id, temp2$client_id) # there are still about 1
 
 msgs_leading_to_reply <- temp2
 
-first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id) %>% slice(which.max(send_at_num)) # the first user msg that received a client reply (might be initial msg, might not)
+first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id) %>% slice(which.max(send_at_num)) # the first user msg in a relationship that received a client reply (might be initial msg, might not)
 
 # number_msgs_to_reply <- aggregate(msgs_leading_to_reply$client_id, by = list(msgs_leading_to_reply$client_id), FUN = length) # how many user msgs before the first client msg
 # colnames(number_msgs_to_reply) <- c("client_id", "number_to_reply")
@@ -264,28 +274,29 @@ first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id) %>% slice(whi
 
 ## NEW APPROACH
 
-# indicator: is this user msg a first msg? 
+# indicator: is this user msg an initial msg? 
 
 initial_msg <- user_messages %>% group_by(client_id) %>% summarize(initial_msg = min(send_at_num))
 temp4 <- merge(user_messages, initial_msg, by = c("client_id"))
 temp4 <- temp4 %>% mutate(initial_msg_indicator = case_when(initial_msg == send_at_num ~ 1,
                                                             initial_msg != send_at_num ~ 0))
 
-# indicator: did the client respond to this msg?
+# indicator: did the client respond to this user msg?
 
-first_msg_replied <- first_msg_replied[c("client_id","send_at_num")]
-first_msg_replied$first_msg_replied_i <- 1
+msg_replied <- first_msg_replied[c("client_id","send_at_num")]
+msg_replied$msg_replied_i <- 1
 
-temp4 <- merge(temp4, first_msg_replied, by = c("client_id", "send_at_num"), all.x = TRUE, all.y = TRUE)
-temp4$first_msg_replied_i[is.na(temp4$first_msg_replied_i)] <- 0
+temp4 <- merge(temp4, msg_replied, by = c("client_id", "send_at_num"), all.x = TRUE, all.y = TRUE)
+temp4$msg_replied_i[is.na(temp4$msg_replied_i)] <- 0
 
-temp4 <- temp4[c("client_id", "user_id", "id", "body", "inbound", "created_at", "send_at", 
-               "created_at_backup", "send_at_backup", "created_at_num", "send_at_num",
-               "initial_msg_indicator", "first_msg_replied_i", "send_at_DoW", "send_at_ToD_bins",
-               "future_appointment_date", "scheduled_diff")]
+temp4 <- temp4[c("client_id", "user_id", "id", "body", "inbound", 
+                 "user_first_name", "user_last_name", "client_first_name", "client_last_name",
+                 "created_at", "created_at_backup", "created_at_num", 
+                 "send_at", "send_at_backup", "send_at_num",
+                 "send_at_DoW", "send_at_ToD_bins", "initial_msg_indicator", "msg_replied_i", 
+                 "future_appointment_date", "scheduled_diff", "user_msg_length")]
 
 # add variables of interest
-
 
 temp4$greeting <- as.numeric(grepl("hello", temp4$body, ignore.case = TRUE) | 
                                grepl("good morning", temp4$body, ignore.case = TRUE) |
@@ -294,7 +305,7 @@ temp4$greeting <- as.numeric(grepl("hello", temp4$body, ignore.case = TRUE) |
 
 temp4$closing <- as.numeric(grepl("have a great", temp4$body, ignore.case = TRUE) | 
                               grepl("have a good", temp4$body, ignore.case = TRUE) | 
-                              grepl("have a blessed", temp4$body, ignore.case = TRUE) | 
+                              grepl("have a bless", temp4$body, ignore.case = TRUE) | 
                               grepl("enjoy", temp4$body, ignore.case = TRUE) | 
                               grepl("stay safe", temp4$body, ignore.case = TRUE)) # Closing
 
@@ -303,14 +314,14 @@ temp4$polite <- as.numeric(grepl("please", temp4$body, ignore.case = TRUE) |
                              grepl("courtesy", temp4$body, ignore.case = TRUE) |
                              grepl("friendly", temp4$body, ignore.case = TRUE)) # Polite
 
-temp4$business <- as.numeric(grepl("verification", temp4$body, ignore.case = TRUE) |
-                               grepl("documentation", temp4$body, ignore.case = TRUE) |
+temp4$business <- as.numeric(grepl("verif", temp4$body, ignore.case = TRUE) |
+                               grepl("pay stub", temp4$body, ignore.case = TRUE) |
+                               grepl("paystub", temp4$body, ignore.case = TRUE) |
                                grepl("letter", temp4$body, ignore.case = TRUE) |
                                grepl("document", temp4$body, ignore.case = TRUE)) # Business
 
 temp4$problem <- as.numeric(grepl("warrant", temp4$body, ignore.case = TRUE) |
-                              grepl("failure", temp4$body, ignore.case = TRUE) |
-                              grepl("arrest", temp4$body, ignore.case = TRUE) |
+                              grepl("fail", temp4$body, ignore.case = TRUE) |
                               grepl("missed", temp4$body, ignore.case = TRUE) |
                               grepl("violation", temp4$body, ignore.case = TRUE) |
                               grepl("compliance", temp4$body, ignore.case = TRUE)) # Problem
@@ -319,13 +330,51 @@ temp4$urgency <- as.numeric(grepl("asap", temp4$body, ignore.case = TRUE) |
                               grepl("a.s.a.p.", temp4$body, ignore.case = TRUE) |
                               grepl("immediately", temp4$body, ignore.case = TRUE) |
                               grepl("right away", temp4$body, ignore.case = TRUE) |
-                              grepl("imperative", temp4$body, ignore.case = TRUE) |
-                              grepl("now", temp4$body, ignore.case = TRUE)) # Urgency
+                              grepl("imperative", temp4$body, ignore.case = TRUE)) # Urgency
+
+temp4$info <- as.numeric(grepl("will be closed", temp4$body, ignore.case = TRUE) |
+                           grepl("office is closed", temp4$body, ignore.case = TRUE) |
+                           grepl("closure", temp4$body, ignore.case = TRUE) |
+                           grepl("shutdown", temp4$body, ignore.case = TRUE) |
+                           grepl("phone lines", temp4$body, ignore.case = TRUE))
 
 temp4$yelling <- as.numeric(grepl("^[^a-z]*$", temp4$body)) # Yelling
 
-# need to add variable for client name, PO name, template
-# ?please respond, info
+# client name
+temp4$has_client_last_name <- stri_detect(temp4$body, fixed = temp4$client_last_name)
+temp4$has_client_first_name <- stri_detect(temp4$body, fixed = temp4$client_first_name)
+
+temp4 <- temp4 %>% mutate(has_client_name = 
+                            case_when((temp4$has_client_last_name + temp4$has_client_first_name) == 0 ~ 0,
+                                      (temp4$has_client_last_name + temp4$has_client_first_name) != 0 ~ 1))
+
+# user name
+temp4$has_user_last_name <- stri_detect(temp4$body, fixed = temp4$user_last_name)
+temp4$has_user_first_name <- stri_detect(temp4$body, fixed = temp4$user_first_name)
+
+temp4 <- temp4 %>% mutate(has_user_name = 
+                            case_when((temp4$has_user_last_name + temp4$has_user_first_name) == 0 ~ 0,
+                                      (temp4$has_user_last_name + temp4$has_user_first_name) != 0 ~ 1))
+
+## message similarity
+
+user_messages_copy <- user_messages
+
+temp6 <- user_messages_copy %>% full_join(user_messages, by = "user_id") 
+temp7 <- temp6 %>% filter(client_id.x != client_id.y)
+
+temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$body.y))
+
+## good to here
+
+
+
+
+max_reuse_score <- aggregate(temp7$reuse_score, by = list(temp7$client_id.x, temp7$sent_at_num.x), FUN = max)
+colnames(max_reuse_score) <- c("client_id", "sent_at_num", "max_reuse_score")
+
+
+# once I get the max reuse score, merge it with temp4
 
 # Final tidy up
 temp4$PO <- as.factor(temp4$user_id)
@@ -336,6 +385,11 @@ temp4$client_id <- as.factor(temp4$client_id)
 user_msgs_qualities <- temp4
 
 cache('user_msgs_qualities')
+
+
+
+
+
 
 
 

@@ -301,36 +301,35 @@ temp4 <- temp4[c("client_id", "user_id", "id", "body", "inbound",
 temp4$greeting <- as.numeric(grepl("hello", temp4$body, ignore.case = TRUE) | 
                                grepl("good morning", temp4$body, ignore.case = TRUE) |
                                grepl("good afternoon", temp4$body, ignore.case = TRUE) |
-                               grepl("good evening", temp4$body, ignore.case = TRUE)) # Greeting
+                               grepl("good evening", temp4$body, ignore.case = TRUE)) 
 
 temp4$closing <- as.numeric(grepl("have a great", temp4$body, ignore.case = TRUE) | 
                               grepl("have a good", temp4$body, ignore.case = TRUE) | 
                               grepl("have a bless", temp4$body, ignore.case = TRUE) | 
                               grepl("enjoy", temp4$body, ignore.case = TRUE) | 
-                              grepl("stay safe", temp4$body, ignore.case = TRUE)) # Closing
+                              grepl("stay safe", temp4$body, ignore.case = TRUE))
 
 temp4$polite <- as.numeric(grepl("please", temp4$body, ignore.case = TRUE) |
                              grepl("thank you", temp4$body, ignore.case = TRUE) |
                              grepl("courtesy", temp4$body, ignore.case = TRUE) |
-                             grepl("friendly", temp4$body, ignore.case = TRUE)) # Polite
+                             grepl("friendly", temp4$body, ignore.case = TRUE))
 
-temp4$business <- as.numeric(grepl("verif", temp4$body, ignore.case = TRUE) |
-                               grepl("pay stub", temp4$body, ignore.case = TRUE) |
-                               grepl("paystub", temp4$body, ignore.case = TRUE) |
+temp4$business <- as.numeric((grepl("verif", temp4$body, ignore.case = TRUE) & !grepl("re-verif", temp4$body, ignore.case = TRUE)) |
+                               grepl("stub", temp4$body, ignore.case = TRUE) |
                                grepl("letter", temp4$body, ignore.case = TRUE) |
-                               grepl("document", temp4$body, ignore.case = TRUE)) # Business
+                               grepl("document", temp4$body, ignore.case = TRUE))
 
 temp4$problem <- as.numeric(grepl("warrant", temp4$body, ignore.case = TRUE) |
                               grepl("fail", temp4$body, ignore.case = TRUE) |
                               grepl("missed", temp4$body, ignore.case = TRUE) |
                               grepl("violation", temp4$body, ignore.case = TRUE) |
-                              grepl("compliance", temp4$body, ignore.case = TRUE)) # Problem
+                              grepl("compliance", temp4$body, ignore.case = TRUE))
 
 temp4$urgency <- as.numeric(grepl("asap", temp4$body, ignore.case = TRUE) |
                               grepl("a.s.a.p.", temp4$body, ignore.case = TRUE) |
                               grepl("immediately", temp4$body, ignore.case = TRUE) |
                               grepl("right away", temp4$body, ignore.case = TRUE) |
-                              grepl("imperative", temp4$body, ignore.case = TRUE)) # Urgency
+                              grepl("imperative", temp4$body, ignore.case = TRUE))
 
 temp4$info <- as.numeric(grepl("will be closed", temp4$body, ignore.case = TRUE) |
                            grepl("office is closed", temp4$body, ignore.case = TRUE) |
@@ -338,19 +337,59 @@ temp4$info <- as.numeric(grepl("will be closed", temp4$body, ignore.case = TRUE)
                            grepl("shutdown", temp4$body, ignore.case = TRUE) |
                            grepl("phone lines", temp4$body, ignore.case = TRUE))
 
-temp4$yelling <- as.numeric(grepl("^[^a-z]*$", temp4$body)) # Yelling
+temp4$yelling <- as.numeric(grepl("^[^a-z]*$", temp4$body))
+
+temp4$pls_respond <- as.numeric(grepl("respond to this text", temp4$body, ignore.case = TRUE) |
+                                  grepl("respond to this message", temp4$body, ignore.case = TRUE) |
+                                  grepl("acknowledge", temp4$body, ignore.case = TRUE) |
+                                  grepl("reply to this text", temp4$body, ignore.case = TRUE) |
+                                  grepl("reply to this message", temp4$body, ignore.case = TRUE))
+
+# court date reminder/appointment date reminder
+msgs_with_dates <- temp4[temp4$future_appointment_date == 1,c("client_id", "user_id", "send_at_num", "body")]
+
+msgs_with_dates$court_date_reminder <- as.numeric((grepl("court date", msgs_with_dates$body, ignore.case = TRUE) &
+                                                     !grepl("date specified is your scheduled court date please report", msgs_with_dates$body, ignore.case = TRUE)) |
+                                                    grepl("your trial", msgs_with_dates$body, ignore.case = TRUE) | 
+                                                    grepl("jury trial", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("court today", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    (grepl("trial date", msgs_with_dates$body, ignore.case = TRUE) &
+                                                       !grepl("after the trial on the trial date", msgs_with_dates$body, ignore.case = TRUE)) |
+                                                    (grepl("court tomorrow", msgs_with_dates$body, ignore.case = TRUE) &
+                                                       !grepl("if you have court tomorrow", msgs_with_dates$body, ignore.case = TRUE)) |
+                                                    grepl("scheduled for trial", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("reminder of court", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("court on", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("court this morning", msgs_with_dates$body, ignore.case = TRUE)
+                                                    )
+
+msgs_with_dates$appointment_date_reminder <- as.numeric(grepl("check in", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report day", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report date", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report to", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report by", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report in", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report on", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("next appointment is", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report tomorrow", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report every", msgs_with_dates$body, ignore.case = TRUE))
+
+msgs_with_dates <- msgs_with_dates[,c("client_id", "send_at_num", "court_date_reminder", "appointment_date_reminder")]
+
+
+temp5 <- merge(temp4, msgs_with_dates, by = c("client_id", "send_at_num"), all.x = TRUE)
 
 # client name
-temp4$has_client_last_name <- stri_detect(temp4$body, fixed = temp4$client_last_name)
-temp4$has_client_first_name <- stri_detect(temp4$body, fixed = temp4$client_first_name)
+temp5$has_client_last_name <- stri_detect(temp5$body, fixed = temp5$client_last_name)
+temp5$has_client_first_name <- stri_detect(temp5$body, fixed = temp5$client_first_name)
 
-temp4$has_client_name <- as.numeric(temp4$has_client_last_name | temp4$has_client_first_name)
+temp5$has_client_name <- as.numeric(temp5$has_client_last_name | temp5$has_client_first_name)
 
 # user name
-temp4$has_user_last_name <- stri_detect(temp4$body, fixed = temp4$user_last_name)
-temp4$has_user_first_name <- stri_detect(temp4$body, fixed = temp4$user_first_name)
+temp5$has_user_last_name <- stri_detect(temp5$body, fixed = temp5$user_last_name)
+temp5$has_user_first_name <- stri_detect(temp5$body, fixed = temp5$user_first_name)
 
-temp4$has_user_name <- as.numeric(temp4$has_user_last_name | temp4$has_user_first_name)
+temp5$has_user_name <- as.numeric(temp5$has_user_last_name | temp5$has_user_first_name)
 
 ## message similarity
 
@@ -361,7 +400,9 @@ temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$bo
 
 max_reuse_score <- temp7 %>% group_by(client_id.x, send_at_num.x) %>% summarize(max_reuse_score = max(reuse_score))
 
-temp8 <- merge(temp4, max_reuse_score, by.x = c("client_id", "send_at_num"), by.y = c("client_id.x", "send_at_num.x"),
+cache('max_reuse_score')
+
+temp8 <- merge(temp5, max_reuse_score, by.x = c("client_id", "send_at_num"), by.y = c("client_id.x", "send_at_num.x"),
                all.x = FALSE, all.y = FALSE)
 
 # Final tidy up
@@ -373,7 +414,6 @@ temp8$client_id <- as.factor(temp8$client_id)
 user_msgs_qualities <- temp8
 
 cache('user_msgs_qualities')
-
 
 
 

@@ -1,3 +1,6 @@
+####################################################
+### Client failures and client responses by user ###
+####################################################
 
 # Rate of client responses each user gets?
 user_response_rate <- cc.dtf %>% group_by(user_id) %>% 
@@ -29,6 +32,19 @@ user_rates <- merge(user_response_rate, user_success_rate, by="user_id")
 # Bottom response/bottom success = 16
 # ?? Bottom response/top success = 19, 23
 # No top responses among the bottom successes
+
+###################################################################################
+### What percent of clients who ever respond respond to the first user message? ###
+###################################################################################
+
+nrow(user_msgs_qualities[user_msgs_qualities$msg_replied_i == 1,]) # 1653 responses
+
+nrow(user_msgs_qualities[user_msgs_qualities$msg_replied_i == 1 & user_msgs_qualities$initial_msg_indicator == 1,]) # 887
+
+887/1653 # = 0.54
+
+######
+
 
 
 

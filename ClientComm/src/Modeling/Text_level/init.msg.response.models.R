@@ -39,6 +39,7 @@ summary(init_style_mod.4)
 # sig neg: polite:reuse
 # neg: closing:reuse, yelling, reuse score
 # AIC 3710.8
+## Makes sense
 
 
 
@@ -58,33 +59,32 @@ init_content_mod.1a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + ap
                                business + problem + info + urgency, 
                             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.1a)
-# sig pos: appointment_date
-# pos: info, pls_respond
-# sig neg: 
-# neg: urgency, court_date, business, problem
-# AIC 1827.4! Much more efficient model, but surprises about direction of influence of variable
+# sig pos: appointment_date, pls_respond, business
+# pos: court_date
+# sig neg: problem, info
+# neg: urgency
+# AIC 3749.5
 
 init_content_mod.2 <- glmer(msg_replied_i ~ (1 | PO) + future_appointment_date + business + problem + 
                               info + urgency + max_reuse_score + max_reuse_score:business, # interaction of business and max_reuse
                             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.2)
-# sig pos: future appt date, business
-# pos: 
-# sig neg: problem, urgency, reuse score, business:reuse score
-# neg: info
+# sig pos: future appt date
+# pos: business
+# sig neg: problem, urgency, reuse score
+# neg: info, business:reuse score
 # AIC 3733.6
-#### this one makes sense to me
 
 init_content_mod.2a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + pls_respond +
                                business + problem + info + urgency + max_reuse_score + 
                                max_reuse_score:business, # interaction of business and max_reuse
                             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.2a)
-# sig pos: appointment_date
-# pos: business, info, pls_respond
-# sig neg: problem
-# neg: court_date, urgency, reuse score, business:reuse score
-# AIC 1828.7
+# sig pos: appointment_date, pls_respond
+# pos: business
+# sig neg: problem, reuse score
+# neg: court_date, urgency, business:reuse score, info
+# AIC 3723.4
 
 init_content_mod.3 <- glmer(msg_replied_i ~ (1 | PO) + future_appointment_date + business + problem + 
                               info + urgency + max_reuse_score + max_reuse_score:business + max_reuse_score:problem, # interaction of problem and max_reuse
@@ -101,11 +101,11 @@ init_content_mod.3a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + ap
                                max_reuse_score:business + max_reuse_score:problem, # interaction of problem and max_reuse
                             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.3a)
-# sig pos: appt date
-# pos: business, info, problem:reuse, pls_respond
-# sig neg: 
-# neg: court date, problem, urgency, reuse score, bus:reuse
-# AIC 1828.4
+# sig pos: appt date, pls_respond
+# pos: business, problem:reuse
+# sig neg: reuse score
+# neg: court date, problem, urgency, bus:reuse, info
+# AIC 3724.4
 
 init_content_mod.4 <- glmer(msg_replied_i ~ (1 | PO) + future_appointment_date + business + problem + 
                               info + urgency + max_reuse_score + future_appointment_date:business, # interaction of date and business
@@ -116,7 +116,6 @@ summary(init_content_mod.4)
 # sig neg: urgency, problem, reuse score, future_appointment_date:business
 # neg: info
 # AIC 3724.5
-#### also study this one!
 
 init_content_mod.5 <- glmer(msg_replied_i ~ (1 | PO) + future_appointment_date + business + problem + 
                               info + urgency + max_reuse_score + future_appointment_date:business + max_reuse_score:business, 
@@ -127,7 +126,6 @@ summary(init_content_mod.5)
 # sig neg: urgency, problem, reuse score, future_appointment_date:business
 # neg: info, business:max_reuse_score
 # AIC 3726.4
-#### also study this one!
 
 init_content_mod.6a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + pls_respond + 
                                business + problem + info + urgency + max_reuse_score + 
@@ -135,26 +133,36 @@ init_content_mod.6a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + ap
                                max_reuse_score:appointment_date_reminder + max_reuse_score:problem, # interactions with max_reuse
                              data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.6a)
-# nothing significant
-# AIC 1826.7
+# sig pos: pls_respond, business
+# pos: court date
+# sig neg: reuse_score, appointment date, appointment:reuse
+# neg: problem, info, urgency, court date
+# AIC 3716.0
+# strange that reminders are neg in this model but pos in previous models -- interaction with reuse
 
 init_content_mod.7a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + pls_respond + 
                                business + problem + urgency + max_reuse_score + 
                                max_reuse_score:business + max_reuse_score:court_date_reminder, 
                              data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.7a)
-# sig pos: appt date, court date
-# pos: business, pls_respond, reuse_score
-# sig neg: problem, court date:reuse
-# neg: urgency, business:reuse
-# AIC 1823.0
-### this one has low AIC and makes sense except reuse_score is positive?
+# sig pos: appt date, pls_respond
+# pos: court date, business
+# sig neg: reuse score, problem
+# neg: urgency, interaction terms
+# AIC 3725.4
 
 init_content_mod.8a <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + pls_respond + 
                                business + problem + urgency + max_reuse_score + info +
                                max_reuse_score:business + max_reuse_score:court_date_reminder, 
                              data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(init_content_mod.8a)
+# sig pos: appt date, pls_respond
+# pos: court date, business
+# sig neg: reuse score, problem, info
+# neg: urgency, interaction terms
+# AIC 3724.5
+
+
 
 # Confusing! Try to track this effect down.
 
@@ -165,214 +173,151 @@ w1 <- glmer(msg_replied_i ~ (1 | PO) + future_appointment_date +
 summary(w1)
 
 # 2) replace future_appointment_date with court_date_reminder and appointment_date_reminder
-#    +/- sign on court_date_reminder and business and info are not intuitive
+#    AIC 3722.5, direction seems wrong on court date
 w2 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
               pls_respond + business + max_reuse_score + info + problem + urgency, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w2)
 
 # adding interactive terms with max_reuse_score
-# 3a) with court_date_reminder
-#     +/- sign on business, max_reuse_score, info not intuitive
+# 3a) max_reuse_score:court_date_reminder
+#     AIC 3723.7, all directions seem good
 w3 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
               pls_respond + business + max_reuse_score + info + problem + urgency +
               max_reuse_score:court_date_reminder, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w3)
 
-# 3b) with appointment_date_reminder
-#     +/- sign on court_date, appointment_date, business, info not intuitive
+# 3b) max_reuse_score:appointment_date_reminder
+#     AIC 3715.0, direction seems wrong on date reminders
 w4 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
               pls_respond + business + max_reuse_score + info + problem + urgency +
               max_reuse_score:appointment_date_reminder, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w4)
 
-# 3c) with business
-#     +/- sign on court_date, info not intuitive
+# 3c) max_reuse_score:business
+#     AIC 3723.4, direction seems wrong on court date
 w5 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
               pls_respond + business + max_reuse_score + info + problem + urgency +
               max_reuse_score:business, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w5)
 
-# 3d) with info
-#     looks like info and max_reuse_score are too correlated
+# 3d) max_reuse_score:info
+#     AIC 3724.5, direction seems wrong on court date
 w6 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
               pls_respond + business + max_reuse_score + info + problem + urgency +
               max_reuse_score:info, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w6)
 
-# 3e) drop info
-#     +/- sign on court_date_reminder and business not intuitive (see w2)
+# 3e) max_reuse_score:court_date_reminder and max_reuse_score:business
+#     AIC 3724.5, all directions seem good
 w7 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
-              pls_respond + business + max_reuse_score + problem + urgency, 
-            data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(w7)
-
-# 3f) with court_date_reminder and business
-#     +/- sign on max_reuse_score and info not intuitive
-w8 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
               pls_respond + business + max_reuse_score + info + problem + urgency +
               max_reuse_score:business + max_reuse_score:court_date_reminder, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w7)
+
+
+# Seems like the interaction terms don't really help the model or the explanation. 
+# Choose w2 (no interaction terms)
+
+# Add style terms to w2
+
+# No interactions
+# AIC 3683.5
+w8 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+              pls_respond + business + max_reuse_score + info + problem + urgency +
+              greeting + closing + polite + yelling + has_client_name + has_user_name, 
+            data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w8)
 
-# 3g) with court_date_reminder and business -- drop info
-#     +/- sign on max_reuse_score not intuitive
+# Try taking out politeness term (likely correlated with max_reuse)
+# AIC 3697.0 *** NO ***
 w9 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
-              pls_respond + business + max_reuse_score + problem + urgency +
-              max_reuse_score:business + max_reuse_score:court_date_reminder, 
+              pls_respond + business + max_reuse_score + info + problem + urgency +
+              greeting + closing + yelling + has_client_name + has_user_name, 
             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w9)
 
+# Try with polite:max_reuse
+# AIC 3678.1
+w10 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+              pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+              greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score, 
+            data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w10)
+
+# Try without court_date_reminder (?correlation with max_reuse)
+# AIC 3681.8
+w11 <- glmer(msg_replied_i ~ (1 | PO) + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w11)
+
+# Without court_date_reminder, with polite:max_reuse
+# AIC 3676.8
+w12 <- glmer(msg_replied_i ~ (1 | PO) + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w12)
+
+# Try with court_date, without info
+# AIC 3679.2
+w13 <- glmer(msg_replied_i ~ (1 | PO) + appointment_date_reminder + court_date_reminder +
+               pls_respond + business + max_reuse_score + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w13)
+
+## Best model with content and style is w10 AIC 3678.1
+## Substantially better than content-only model w2 AIC 3722.5
+## And better than style-only model init_style_mod.2 AIC 3710.4
 
 
 
-
-### All initial messages: content and style
-
-init_msg_mod.1 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          future_appointment_date + business + problem + info + urgency,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.1)
-# sig pos: greeting, user name, future appt date, business
-# pos: client name
-# sig neg: polite, reuse score, problem, urgency
-# neg: closing, yelling, info
-# AIC 3691.0
-
-init_msg_mod.1a <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          pls_respond + court_date_reminder + appointment_date_reminder + business + problem + urgency,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.1a)
-# No
-
-init_msg_mod.2 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite +
-                          future_appointment_date + business + problem + info + urgency,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.2)
-# sig pos: greeting, user name, future appt date, business
-# pos: client name, polite
-# sig neg: reuse score, problem, urgency, polite:max_reuse_score
-# neg: closing, yelling, info
-# AIC 3686.4
-
-init_msg_mod.2a <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + pls_respond + court_date_reminder + appointment_date_reminder +
-                          business + problem + urgency,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.2a)
-# No
-
-init_msg_mod.3 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          future_appointment_date + business + problem + info + urgency,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.3)
-# sig pos: greeting, user name, future appt date, business
-# pos: client name, polite, closing
-# sig neg: problem, urgency, polite:max_reuse_score
-# neg: yelling, info, reuse score, closing:max_reuse_score
-# AIC 3687.5
-## this one
-
-init_msg_mod.3a <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          pls_respond + court_date_reminder + appointment_date_reminder + business + problem + urgency,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.3a)
-# No
-
-init_msg_mod.4 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          future_appointment_date + business + problem + info + urgency +
-                          max_reuse_score:business,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.4)
-# sig pos: greeting, user name, future appt date
-# pos: client name, polite, closing, business
-# sig neg: problem, urgency, polite:max_reuse_score
-# neg: yelling, info, reuse score, closing:max_reuse_score, max_reuse_score:business
-# AIC 3689.3
-
-init_msg_mod.4a <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          pls_respond + court_date_reminder + appointment_date_reminder + business + problem + urgency +
-                          max_reuse_score:business,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.4a)
-# No
-
-init_msg_mod.5 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          future_appointment_date + business + problem + info + urgency +
-                          max_reuse_score:business + future_appointment_date:business,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.5)
-# sig pos: greeting, user name, future appt date
-# pos: client name, business, polite, closing, max_reuse_score:business
-# sig neg: problem, urgency, polite:max_reuse_score, future_appointment_date:business
-# neg: yelling, info, reuse score, closing:max_reuse_score
-# AIC 3679.6
-
-init_msg_mod.5a <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          pls_respond + court_date_reminder + appointment_date_reminder + business + problem + urgency +
-                          max_reuse_score:business + future_appointment_date:business,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.5a)
-# None of these is any good
-
-
-
-### Add metadata to best content + style model
+### Add metadata to best content + style model (w10)
 
 initial_msgs_qualities$send_at_ToD_bins <- relevel(initial_msgs_qualities$send_at_ToD_bins, ref="Morning")
 
-init_msg_mod.6 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          future_appointment_date + business + problem + info + urgency +
-                          send_at_ToD_bins,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.6)
+w14 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score +
+               send_at_ToD_bins, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w14)
 # Afternoon is significantly better than morning
-# AIC 3687.6
-## best one
+# AIC 3679.7
 
 class(initial_msgs_qualities$send_at_DoW) <- "factor"
 initial_msgs_qualities$send_at_DoW <- relevel(initial_msgs_qualities$send_at_DoW, ref = "Wed")
 
-init_msg_mod.7 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          future_appointment_date + business + problem + info + urgency +
-                          max_reuse_score:business + send_at_DoW,
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.7)
-# With Thu as ref, Sun neg (not sig), all other days pos (not sig)
-# With Wed as ref, Sun/Mon/Tue/Thu neg (not sig), all other days pos (not sig)
-# With Tue as ref, Sun/Thu neg (not sig), all other days pos (not sig)
+w15 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score +
+               send_at_DoW, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w15)
+# DoW not significant
 
 initial_msgs_qualities$send_at_hr <- hour(initial_msgs_qualities$send_at)
 
-init_msg_mod.8 <- glmer(msg_replied_i ~ (1 | PO) + 
-                          greeting + closing + polite + yelling + max_reuse_score + has_client_name + has_user_name + 
-                          max_reuse_score:polite + max_reuse_score:closing +
-                          future_appointment_date + business + problem + info + urgency +
-                          max_reuse_score:business + sin(pi*send_at_hr/12) + cos(pi*send_at_hr/12),
-                        data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
-summary(init_msg_mod.8)
-# Difficult to understand. ToD bins are good enough!
+w16 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score +
+               sin(pi*send_at_hr/12) + cos(pi*send_at_hr/12), 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(w16)
+# ToD not significant and also difficult to understand. ToD bins are good enough!
+
+####### Best model #########
+w14 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score +
+               send_at_ToD_bins, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+############################

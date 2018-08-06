@@ -391,6 +391,10 @@ temp5$has_user_first_name <- stri_detect(temp5$body, fixed = temp5$user_first_na
 
 temp5$has_user_name <- as.numeric(temp5$has_user_last_name | temp5$has_user_first_name)
 
+# replace NAs in msgs_with_dates with 0
+temp5$appointment_date_reminder[is.na(temp5$appointment_date_reminder)] <- 0
+temp5$court_date_reminder[is.na(temp5$court_date_reminder)] <- 0
+
 ## message similarity
 
 temp6 <- user_messages %>% full_join(user_messages, by = "user_id") 

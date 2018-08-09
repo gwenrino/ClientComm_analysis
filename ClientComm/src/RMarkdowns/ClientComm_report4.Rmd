@@ -72,7 +72,7 @@ The data used in this analysis is all the initial outbound messages sent by Balt
 With two exceptions, all of the independent variables are binary indicators built using pattern-matching functions to locate words and phrases we identified as indicative of a particular message characteristic by hand-coding hundreds of user messages.  
 The exceptions are:  
 - send_at_ToD_bins identifies the time of day that the PO message was sent at one of four levels (morning, afternoon, evening, night).  
-- max_reuse_score is a continuous variable that quantifies how generic or individualized a message is by comparing it to all other user messages using the function stringdist::stringsim. A message's max_reuse_score is its highest similarity score, where a score of 0 indicatess a message that is completely unique within the dataset and a score of 1 indicates a message that is exactly the same as another message within the dataset.
+- max_reuse_score is a continuous variable that quantifies how generic or individualized a message is by comparing it to all other user messages using the function stringdist::stringsim. A message's max_reuse_score is its highest similarity score, where a score of 0 indicates a message that is completely unique within the dataset and a score of 1 indicates a message that is exactly the same as another message within the dataset.
 
 There is one interaction between variables included in the model, max_reuse_score:polite. This interaction clarifies that politeness is positively associated with client response only in messages that are individualized; the positive influence of politeness is overridden by the negative influence of generic messages.
 
@@ -88,7 +88,7 @@ We built a generalized linear mixed model to estimate the influence of various m
 ```{r, echo=FALSE}
 model <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
                pls_respond + business + max_reuse_score + info + problem + urgency + polite +
-               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score + send_at_ToD_bins, 
+               greeting + yelling + has_client_name + has_user_name + polite:max_reuse_score + send_at_ToD_bins, 
              data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(model)
 ```

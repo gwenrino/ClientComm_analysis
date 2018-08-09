@@ -5,6 +5,7 @@ Sys.setenv(TZ='America/New_York')
 ######################################################
 
 initial_msgs_qualities <- user_msgs_qualities[user_msgs_qualities$initial_msg_indicator == 1,] # filter for initial messages
+cache('initial_msgs_qualities')
 
 ### All initial messages: what stylistic characteristics are significantly associated with responses?
 
@@ -297,7 +298,7 @@ initial_msgs_qualities$send_at_ToD_bins <- relevel(initial_msgs_qualities$send_a
 
 w15 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
                pls_respond + business + max_reuse_score + info + problem + urgency + polite +
-               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score +
+               greeting + yelling + has_client_name + has_user_name + polite:max_reuse_score +
                send_at_ToD_bins, 
              data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
 summary(w15)
@@ -328,9 +329,10 @@ summary(w17)
 ####### Best model #########
 w15 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
                pls_respond + business + max_reuse_score + info + problem + urgency + polite +
-               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score +
+               greeting + yelling + has_client_name + has_user_name + polite:max_reuse_score +
                send_at_ToD_bins, 
              data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+cache('w15')
 ############################
 
 ## Effect size max_reuse score: up to 18%
@@ -351,6 +353,19 @@ predictions_max_reuse_hi <- predict(w15, newdata = init_msgs_max_reuse_hi, type 
 mean(predictions_max_reuse_lo, na.rm = TRUE) 
 mean(predictions_max_reuse_mid, na.rm = TRUE) 
 mean(predictions_max_reuse_hi, na.rm = TRUE) 
+
+## Another measure of effect of max_reuse:
+init_msgs_max_reuse_lo <- initial_msgs_qualities
+init_msgs_max_reuse_lo$max_reuse_score <- .75
+
+init_msgs_max_reuse_median <- initial_msgs_qualities
+init_msgs_max_reuse_median$max_reuse_score <- .98
+
+predictions_max_reuse_lo <- predict(w15, newdata = init_msgs_max_reuse_lo, type = "response", allow.new.levels=TRUE)
+predictions_max_reuse_median <- predict(w15, newdata = init_msgs_max_reuse_median, type = "response", allow.new.levels=TRUE)
+
+mean(predictions_max_reuse_lo, na.rm = TRUE) 
+mean(predictions_max_reuse_median, na.rm = TRUE) 
 
 ## Effect size business: 25.7%
 
@@ -421,3 +436,47 @@ predictions_yelling_1 <- predict(w15, newdata = init_msgs_yelling_1, type = "res
 
 mean(predictions_yelling_0, na.rm = TRUE)
 mean(predictions_yelling_1, na.rm = TRUE)
+
+## Effect size appt_date: 21.5%
+
+init_msgs_appt_date_0 <- initial_msgs_qualities
+init_msgs_appt_date_0$appointment_date_reminder <- 0
+
+init_msgs_appt_date_1 <- initial_msgs_qualities
+init_msgs_appt_date_1$appointment_date_reminder <- 1
+
+predictions_appt_date_0 <- predict(w15, newdata = init_msgs_appt_date_0, type = "response", allow.new.levels=TRUE)
+predictions_appt_date_1 <- predict(w15, newdata = init_msgs_appt_date_1, type = "response", allow.new.levels=TRUE)
+
+mean(predictions_appt_date_0, na.rm = TRUE)
+mean(predictions_appt_date_1, na.rm = TRUE)
+
+## Effect size polite: %
+
+init_msgs_polite_0 <- initial_msgs_qualities
+init_msgs_polite_0$polite <- 0
+
+init_msgs_polite_1 <- initial_msgs_qualities
+init_msgs_polite_1$polite <- 1
+
+predictions_polite_0 <- predict(w15, newdata = init_msgs_polite_0, type = "response", allow.new.levels=TRUE)
+predictions_polite_1 <- predict(w15, newdata = init_msgs_polite_1, type = "response", allow.new.levels=TRUE)
+
+mean(predictions_polite_0, na.rm = TRUE)
+mean(predictions_polite_1, na.rm = TRUE)
+
+## Effect size user_name: %
+
+init_msgs_has_user_name_0 <- initial_msgs_qualities
+init_msgs_has_user_name_0$max_reuse_score <- .99
+init_msgs_has_user_name_0$has_user_name <- 0
+
+init_msgs_has_user_name_1 <- initial_msgs_qualities
+init_msgs_has_user_name_1$max_reuse_score <- .99
+init_msgs_has_user_name_1$has_user_name <- 1
+
+predictions_has_user_name_0 <- predict(w15, newdata = init_msgs_has_user_name_0, type = "response", allow.new.levels=TRUE)
+predictions_has_user_name_1 <- predict(w15, newdata = init_msgs_has_user_name_1, type = "response", allow.new.levels=TRUE)
+
+mean(predictions_has_user_name_0, na.rm = TRUE)
+mean(predictions_has_user_name_1, na.rm = TRUE)

@@ -8,12 +8,17 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+```{r, echo=FALSE, message=FALSE}
+library(lme4)
+load('~/Documents/ClientComm data analysis/ClientComm_analysis/ClientComm/initial_msgs_qualities.RData')
+```
+
 
 ## OVERVIEW AND KEY FINDINGS  
 
 These are the results of our investigation of the question: What characteristics of initial messages sent by Baltimore POs are associated with clients replying?  
 
-Answering this question is important because clients who participate in two-way texting relationships with their POs are significantly (up to 45%) less likely to experience supervision failure than those who don't, and the majority (54%) of clients who ever send a text to their PO do so in response to the initial message they receive.  
+Answering this question is important because clients who participate in two-way texting relationships with their POs are significantly less likely (p < .01) to experience supervision failure than those who don't. Furthermore, among clients who ever send a text to their PO, the majority (54%) send their first one in response to the initial message they receive.  
 
 We studied 3342 initial PO messages, of which 889 received responses and 2453 did not, and we discovered a number of characteristics that are associated with client response rates.  
 
@@ -28,30 +33,67 @@ Initial message characteristics that are significantly and positively associated
 - Sent in the afternoon (vs. morning, evening, or night)  
 
 Initial message characteristics that are positively (but not significantly) associated with client responses:  
-- "Polite" language (please, thank you) in individualized (vs. generic) messages  
+- "Polite" language (please, thank you) in individualized messages  
 - The client's name  
 
 Initial message characteristics that are significantly and negatively associated with client responses:  
+- Messages that consist mostly of generic (vs. individualized) language   
 - "Problem" language (violation, warrant, compliance, failure)  
 - "Urgent" language (ASAP, immediately, right away, imperative)  
 - "Polite" language (please, thank you) in generic (vs. individualized) messages    
 
 Initial message characteristics that are negatively (but not significantly) associated with client responses:  
-- Messages that consist mostly of generic (vs. individualized) language  
 - Messages about office closures or other generic issues  
 - "Yelling" (all caps)  
 
 
 ## ANALYTICAL STORY  
 
-In general, clients are more likely to respond to initial PO messages that are individualized than to messages that are generic. Not surprisingly, clients rarely respond to texts that are clearly mass messages, such as the reminder "for all who have court this week, please be on time." Individualizing a text increases the chance that the client will respond, and the more individualized the text is, the more likely the client is to respond. Messages can be individualized enough to affect the client response rate just by including a future appointment date that is specific to the client or by including the PO's and/or client's name. Even modest personalizations like these can increase the client response rate by as much as 18%.   
+In general, clients are more likely to respond to initial PO messages that are individualized than to messages that are generic. Not surprisingly, clients rarely respond to texts that are clearly mass messages, such as the reminder, "For all who have court this week, please be on time." Individualizing a text increases the chance that the client will respond, and the more individualized the text is, the more likely the client is to respond. Messages can be individualized enough to affect the client response rate just by including a future appointment date that is specific to the client or by including the PO's and/or client's name. Even modest personalizations like these can increase the client response rate by as much as 18%.   
 
 PO messages that request something of the client are significantly more likely to receive a client response than those that don't. Clients are 26% more likely to respond to a message that includes a request for a paystub or other document, and 36% more likely to respond to a message that directly requests a reply, than to messages that do not include a request. This PO text demonstrates what a request can look like (it is also individualized with the client's name, the PO's name, and an appointment date):  
-- "Good Afternoon Mr. Harris, This is Agent Stephens with Pretrial Release Services. This is to remind you of our conversation regarding your report date for Intake on January 22, 2018 at 8:30 am at the Clarence Mitchell Courthouse Room 442. Please bring a photo ID and most recent paystubs or documentation of employment. Please confirm this text."  
+- "Good Afternoon Mr. Harris. This is Agent Stephens with Pretrial Release Services. This is to remind you of our conversation regarding your report date for Intake on January 22, 2018 at 8:30 am at the Clarence Mitchell Courthouse Room 442. Please bring a photo ID and most recent paystubs or documentation of employment. Please confirm this text."  
 
-Urgent or problem language is strongly negatively associated with client responses, and "yelling" (writing in all caps) is also negative for client response. These message characteristics can reduce the client response rate by as much as 35%. Perhaps this is because the initial message sets the tone of the relationship. A client may feel less inclined to begin a texting relationship in a context that seems accusatory, negative, or hopeless from the beginning. These PO texts have characteristics that are negatively associated with client response:  
-- "This is your pre-trial agent,  If you have received this message that means you have not reported for pre-trial today.  You need to report ASAP in order to stay in compliance."   
-- "FROM AGENT ROGERS, MR. GRANT, YOU ARE INSTRUCTED TO REPORT IN PERSON IN ORDER TO BRING YOUR RECORDS UP-TO-DATE. FAILURE TO DO SO MAY RESULT IN THE INSURANCE OF A BENCH WARRANT FOR YOUR ARREST. YOU MUST REPORT IN ON 12/28/17, BY 10:00 AM."   
+Urgent or problem language is strongly negatively associated with client responses, and "yelling" (writing in all caps) is also negative for client response. These message characteristics can reduce the client response rate by as much as 35%. Perhaps this is because the initial message sets the tone of the relationship. A client may feel less inclined to begin a texting relationship in a context that seems accusatory, negative, or hopeless from the beginning. The following PO texts have characteristics that are negatively associated with client response:  
+- "This is your pre-trial agent. If you have received this message that means you have not reported for pre-trial today.  You need to report ASAP in order to stay in compliance."   
+- "FROM AGENT ROGERS, MR. GRANT, YOU ARE INSTRUCTED TO REPORT IN PERSON IN ORDER TO BRING YOUR RECORDS UP-TO-DATE. FAILURE TO DO SO MAY RESULT IN THE ISSUANCE OF A BENCH WARRANT FOR YOUR ARREST. YOU MUST REPORT IN ON 12/28/17, BY 10:00 AM."   
 
 In contrast, polite language and greetings such as "Good morning" are message characteristics that are positively associated with client response. Perhaps clients are more inclined to begin a texting relationship when they experience the initial message as respectful and supportive of their success. Importantly, the positive effect of polite language is not as strong as the negative effect of generic messages. Only individualized polite messages are positively associated with client responses, while mass messages, even polite ones, are strongly negatively associated with client responses.  
+
+
+## METHODOLOGY
+
+**Data**
+
+The data used in this analysis is all the initial outbound messages sent by Baltimore ClientComm users between (dates). 
+
+**Independent variables**
+
+With two exceptions, all of the independent variables are binary indicators built using pattern-matching functions to locate words and phrases we identified as indicative of a particular message characteristic by hand-coding hundreds of user messages.  
+The exceptions are:  
+- send_at_ToD_bins identifies the time of day that the PO message was sent at one of four levels (morning, afternoon, evening, night).  
+- max_reuse_score is a continuous variable that quantifies how generic or individualized a message is by comparing it to all other user messages using the function stringdist::stringsim. A message's max_reuse_score is its highest similarity score, where a score of 0 indicatess a message that is completely unique within the dataset and a score of 1 indicates a message that is exactly the same as another message within the dataset.
+
+There is one interaction between variables included in the model, max_reuse_score:polite. This interaction clarifies that politeness is positively associated with client response only in messages that are individualized; the positive influence of politeness is overridden by the negative influence of generic messages.
+
+**Dependent variable**
+
+The dependent variable is a binary indicator of whether or not the PO message received a client response.
+
+\newpage
+**Model**
+
+We built a generalized linear mixed model to estimate the influence of various message characteristics on the likelihood of a client replying to the message. The model holds the POs as random effects in order to focus on the influence of the message characteristics as fixed effects.
+
+```{r, echo=FALSE}
+model <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + closing + yelling + has_client_name + has_user_name + polite:max_reuse_score + send_at_ToD_bins, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+summary(model)
+```
+
+
+
+
 

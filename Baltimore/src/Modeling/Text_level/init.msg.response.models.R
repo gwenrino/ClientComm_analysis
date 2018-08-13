@@ -480,3 +480,23 @@ predictions_has_user_name_1 <- predict(w15, newdata = init_msgs_has_user_name_1,
 
 mean(predictions_has_user_name_0, na.rm = TRUE)
 mean(predictions_has_user_name_1, na.rm = TRUE)
+
+## To measure effect size of generic language, eliminate interaction term from model
+
+w18 <- glmer(msg_replied_i ~ (1 | PO) + court_date_reminder + appointment_date_reminder + 
+               pls_respond + business + max_reuse_score + info + problem + urgency + polite +
+               greeting + yelling + has_client_name + has_user_name + 
+               send_at_ToD_bins, 
+             data = initial_msgs_qualities, family = 'binomial', control = glmerControl(optimizer = "bobyqa"))
+
+init_msgs_max_reuse_lo <- initial_msgs_qualities
+init_msgs_max_reuse_lo$max_reuse_score <- .75
+
+init_msgs_max_reuse_median <- initial_msgs_qualities
+init_msgs_max_reuse_median$max_reuse_score <- .99
+
+predictions_max_reuse_lo <- predict(w18, newdata = init_msgs_max_reuse_lo, type = "response", allow.new.levels=TRUE)
+predictions_max_reuse_median <- predict(w18, newdata = init_msgs_max_reuse_median, type = "response", allow.new.levels=TRUE)
+
+mean(predictions_max_reuse_lo, na.rm = TRUE) 
+mean(predictions_max_reuse_median, na.rm = TRUE) 

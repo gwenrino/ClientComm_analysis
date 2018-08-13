@@ -400,7 +400,7 @@ temp5$court_date_reminder[is.na(temp5$court_date_reminder)] <- 0
 temp6 <- user_messages %>% full_join(user_messages, by = "user_id") 
 temp7 <- temp6 %>% filter(client_id.x != client_id.y)
 
-temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$body.y))
+temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$body.y)) # this takes a very long time to run
 
 max_reuse_score <- temp7 %>% group_by(client_id.x, send_at_num.x) %>% summarize(max_reuse_score = max(reuse_score))
 

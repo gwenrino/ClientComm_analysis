@@ -67,3 +67,11 @@ cc.dtf.plot <- ggplot(cc.dtf.plot, aes(x=client_msg_TF, fill=supervision_failure
   annotate("text", x = 2, y = 500, label = "988 clients \n sent 1+ messages", size = 10, color="black")
 
 ggsave(filename="Client_Engagement.pdf", plot=cc.dtf.plot)
+
+
+## The importance of the initial message ##
+
+nrow(temp4) # 30357
+nrow(temp4[temp4$msg_replied_i == 1,]) # 1654
+nrow(temp4[temp4$initial_msg_indicator == 1,]) # 3339
+nrow(temp4[temp4$initial_msg_indicator == 1 & temp4$msg_replied_i == 1,]) # 888

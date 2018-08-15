@@ -1,33 +1,43 @@
 Sys.setenv(TZ='America/New_York')
+library(tidyverse)
+library(stringi)
 
 pima.data <- read.csv(file = file.path("data", "pima.data.csv"))
 pima.outcomes <- read.csv(file = file.path("data", "pima.outcomes.csv"))
 
-pima.outcomes.unique <- unique(cbind(pima.outcomes[,c(1:3)]))
+pima.active <- pima.data[pima.data$active == TRUE,]
+pima.active$active <- NULL
 
-temp2 <- inner_join(pima.outcomes, pima.data, by = c("client_last_name", "client_first_name"))
+pima.outcomes.unique <- unique(pima.outcomes[,c(1:3,10,12)])
 
-temp2.unique <- inner_join(pima.outcomes.unique, pima.data, by = c("client_last_name", "client_first_name"))
+temp1 <- inner_join(pima.outcomes.unique, pima.active, by = c("client_last_name", "client_first_name"))
+# I can't dedupe this set without losing CC info because some clients are associated with more than one user_id
+# Already subset for active reporting relationship, so not sure what to do about this
 
-temp2.unique <- unique(cbind(temp2.unique[,c(1:3)]))
+temp1.unique <- unique(temp1[,c(1:7,10,12)]) # deduped, but info lost
 
-temp3 <- anti_join(pima.data, temp2.unique, by = c("client_last_name", "client_first_name"))
+temp2 <- anti_join(pima.active, temp1.unique, by = c("client_last_name", "client_first_name"))
 
-temp4 <- anti_join(pima.outcomes.unique, temp2.unique, by = c("client_last_name", "client_first_name"))
+temp3 <- anti_join(pima.outcomes.unique, temp1.unique, by = c("client_last_name", "client_first_name"))
 
-ln.join <- inner_join(temp3, temp4, by = c("client_last_name"))
+ln.join <- inner_join(temp2, temp3, by = c("client_last_name"))
 
 ln.join$first_name_match <- stri_detect(ln.join$client_first_name.x, fixed = ln.join$client_first_name.y)
 
 ln.join <- ln.join %>% filter(first_name_match == TRUE)
 
 names(ln.join)[3] <- "client_first_name"
+# Same dedupe problem as temp1
 
-temp3 <- anti_join(temp3, ln.join, by = c("client_last_name", "client_first_name"))
+ln.join.unique <- unique(ln.join[,c(11,2,3,13,14,1,4,7,9)]) # dedeuped, but info lost
 
-temp4 <- anti_join(temp4, ln.join, by = c("client_last_name" = "client_last_name", "client_first_name" = "client_first_name.y"))
+temp2 <- anti_join(temp2, ln.join.unique, by = c("client_last_name", "client_first_name"))
 
-unmatched.pima.data <- temp3
-unmatched.pima.outcomes <- temp4
+temp3 <- anti_join(temp3, ln.join.unique, by = c("client_last_name","client_first_name"))
 
+unmatched.pima.data <- temp2
 
+unmatched.pima.outcomes <- temp3
+
+pima.matched.data <- rbind(temp1.unique, ln.join.unique)
+# There are still deduping problems. See Richard Bailey and Nicole Benson, e.g.

@@ -10,6 +10,11 @@ mod.2 <- glmer(supervision_failure ~ (1 | PO) +
                data = cc.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
 summary(mod.2) 
 
+mod.2a <- glmer(supervision_failure ~ (1 | PO) +
+                 (client_msg_count > 0),
+               data = cc.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
+summary(mod.2a) 
+
 
 cc.dtf_msg_count_0 <- cc.dtf
 cc.dtf_msg_count_0$client_msg_count <- 0

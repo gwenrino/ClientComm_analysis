@@ -45,6 +45,11 @@ nrow(user_msgs_qualities[user_msgs_qualities$msg_replied_i == 1 & user_msgs_qual
 
 ######
 
+user_first_msg_reply_rate <- user_msgs_qualities %>% filter(initial_msg_indicator == 1) %>% group_by(user_id) %>%
+  summarize(mean_msg_replied = mean(msg_replied_i))
 
+write.csv(user_first_msg_reply_rate, file = "user_first_msg_reply_rate.csv", row.names = FALSE)
 
+PO_client <- user_msgs_qualities %>% group_by(user_id) %>% summarize(n = (sum(initial_msg_indicator == 1))) 
 
+write.csv(PO_client, file = "PO_client.csv", row.names = FALSE)

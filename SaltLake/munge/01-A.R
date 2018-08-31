@@ -3,59 +3,63 @@ library(tidyverse)
 library(stringi)
 library(ProjectTemplate)
 
-pima.data <- read.csv(file = file.path("data", "pima.data.csv"))
-pima.outcomes <- read.csv(file = file.path("data", "pima.outcomes.csv"))
+slc.probation.data <- read.csv(file = file.path("data", "slc.probation.data.csv"))
+slc.pretrial.data <- read.csv(file = file.path("data", "slc.pretrial.data.csv"))
+slc.dept3.data <- read.csv(file = file.path("data", "slc.dept3.data.csv"))
+slc.data <- read.csv(file = file.path("data", "slc.data.csv"))
 surveys <- read.csv(file = file.path("data", "surveys.csv"))
 messages <- read.csv(file = file.path("data", "messages.csv"))
 clients <- read.csv(file = file.path("data", "clients.csv"))
-risk_levels <- read.csv(file = file.path("data", "officers_client_roster_cleaned.csv"))
+salt.lake.discharges <- read.csv(file = file.path("data", "salt.lake.discharges.csv"))
 
-###########################################
-### Linking pima.data and pima.outcomes ###
-###########################################
+#######################################################
+### Linking salt.lake.data and salt.lake.discharges ###
+#######################################################
 
-pima.active <- pima.data[pima.data$active == TRUE,]
-pima.active$active <- NULL
+glimpse(salt.lake.data)
+glimpse(clients)
+glimpse(surveys)
 
-pima.outcomes.unique <- unique(pima.outcomes[,c(1:3,10,12)])
+colnames(clients)[10] <- "ofndr_num"
+colnames(clients)[1] <- "client_id"
 
-# First join: same first and last name
-temp1 <- inner_join(pima.outcomes.unique, pima.data, by = c("client_last_name", "client_first_name"))
+length(unique(salt.lake.discharges$ofndr_num))
+# doubled offender numbers sometimes associated with second outcome, sometimes not.
+# keep dupes for now
 
-# Remove temp1 from pima.data and pima.outcomes.unique
-temp2 <- anti_join(pima.data, temp1, by = c("client_last_name", "client_first_name"))
-temp3 <- anti_join(pima.outcomes.unique, temp1, by = c("client_last_name", "client_first_name"))
+summary(clients$ofndr_num)
+temp.1 <- merge(salt.lake.discharges, clients, by = "ofndr_num", all.x = FALSE, all.y = FALSE)
 
-# Second join: same last name
-ln.join <- inner_join(temp2, temp3, by = c("client_last_name"))
+salt.lake.active <- salt.lake.data[salt.lake.data$active == TRUE,]
+salt.lake.active$active <- NULL
 
-# First name matches within join
-ln.join$first_name_match <- stri_detect(ln.join$client_first_name.x, fixed = ln.join$client_first_name.y)
+temp.2 <- merge(salt.lake.active, temp.1, by = "client_id", all.x = FALSE, all.y = FALSE)
 
-# Filter for matches 
-ln.join.match <- ln.join %>% filter(first_name_match == TRUE)
-names(ln.join.match)[3] <- "client_first_name"
-ln.join.match <- ln.join.match[,c(12,2,3,14,15,1,4:11)]
 
-# Remove ln.join.match from temp2 and temp3
-temp2 <- anti_join(temp2, ln.join.match, by = c("client_last_name", "client_first_name"))
-temp3 <- anti_join(temp3, ln.join.match, by = c("client_last_name","client_first_name"))
+## Compare temp.2 with merge of surveys and salt.lake.data
+temp.3 <- merge(salt.lake.active, surveys, by.x = c("client_id", "user_id"), 
+               by.y = c("surveys_client_id", "surveys_user_id"), 
+               all.x = TRUE, all.y = FALSE)
 
-# Rename unmatched sets
-unmatched.pima.data <- temp2
-unmatched.pima.outcomes <- temp3
+temp.4 <- merge(temp.2, temp.3, by = "client_id")
+# looks like a pretty fair amount of overlap...
 
-# Combine matches from first and second join
-pima.matched.data <- rbind(temp1, ln.join.match)
-pima.matched.active <- pima.matched.data[pima.matched.data$active == TRUE,]
-pima.matched.deactivated <- pima.matched.data[pima.matched.data$active == FALSE,]
 
-# Are some POs especially likely not to deactivate their clients?
 
-pima.matched.data$active <- as.numeric(pima.matched.data$active)
-deactivation <- pima.matched.data %>% group_by(user_id) %>% 
-  summarize(caseload = n(), deactivated = sum(active)) %>% mutate(deactivation_rate = deactivated/caseload)
-                                                      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Rate of tech violations
 
@@ -70,28 +74,9 @@ table(pima.unmatched.violations$violation)
 
 prop.test(c(423, 1185), c(789,2095))
 
-###########################################
-### Evaluate matching from outcome data ###
-###########################################
 
-# There are still deduping problems. See Richard Bailey and Nicole Benson, e.g.
-length(unique(pima.matched.data$client_RSN))
-length(unique(pima.matched.active$client_RSN))
 
-## Compare pima.matched.data to link of pima.data and surveys
-temp4 <- merge(pima.data, surveys, by.x = c("client_id", "user_id"), 
-               by.y = c("surveys_client_id", "surveys_user_id"), 
-               all.x = TRUE, all.y = FALSE)
 
-negative_outcome_list <- c("Absconded", "Revoked - new criminal offense", "Revoked - probation violation")
-cc.negative.outcomes <- subset(temp4, surveys_text %in% negative_outcome_list)
-
-setdiff(unique(cc.negative.outcomes$client_id), unique(pima.matched.active$client_id))
-setdiff(unique(cc.negative.outcomes$client_id), unique(pima.matched.active$client_id))
-setdiff(unique(pima.matched.active$client_id), unique(cc.negative.outcomes$client_id))
-
-names_match <- merge(pima.matched.active, cc.negative.outcomes, by=c("client_last_name"))
-# There are only 165 matches between the outcomes data and the survey data
 
 ###########################
 ### Munging survey data ###
@@ -279,18 +264,5 @@ temp5b <- merge(temp5b, temp.f, by = c("client_id", "user_id"), all.x = FALSE, a
 
 temp5c <- merge(clients, risk_levels, by.x = c("phone_number", "client_id"), by.y = c("tel_num", "X"), all.x = FALSE, all.y = FALSE)
 # no matches at all, so maybe the client_id match was a red herring?
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

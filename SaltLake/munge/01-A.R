@@ -2,267 +2,755 @@ Sys.setenv(TZ='America/New_York')
 library(tidyverse)
 library(stringi)
 library(ProjectTemplate)
+library(lubridate)
 
-slc.probation.data <- read.csv(file = file.path("data", "slc.probation.data.csv"))
-slc.pretrial.data <- read.csv(file = file.path("data", "slc.pretrial.data.csv"))
-slc.dept3.data <- read.csv(file = file.path("data", "slc.dept3.data.csv"))
 slc.data <- read.csv(file = file.path("data", "slc.data.csv"))
 surveys <- read.csv(file = file.path("data", "surveys.csv"))
 messages <- read.csv(file = file.path("data", "messages.csv"))
 clients <- read.csv(file = file.path("data", "clients.csv"))
+users <- read.csv(file = file.path("data", "users.csv"))
 salt.lake.discharges <- read.csv(file = file.path("data", "salt.lake.discharges.csv"))
 
-#######################################################
-### Linking salt.lake.data and salt.lake.discharges ###
-#######################################################
+#################################################
+### Linking slc.data and salt.lake.discharges ###
+#################################################
 
-glimpse(salt.lake.data)
-glimpse(clients)
+glimpse(slc.data)
 glimpse(surveys)
-
-colnames(clients)[10] <- "ofndr_num"
-colnames(clients)[1] <- "client_id"
+glimpse(messages)
+glimpse(clients)
+glimpse(salt.lake.discharges)
 
 length(unique(salt.lake.discharges$ofndr_num))
 # doubled offender numbers sometimes associated with second outcome, sometimes not.
 # keep dupes for now
 
+summary(clients$ofndr_num) # about 1700 clients have ofndr_num
+
+# Get ofndr_num for slc.data
+temp.1 <- left_join(slc.data, clients, by = "client_id")
+temp.1$user_id.y <- NULL
+
+# Join on ofndr_num
+length(unique(salt.lake.discharges$ofndr_num)) # there are 6323 unique ofndr_nums
+ofndr_num_join <- inner_join(salt.lake.discharges, temp.1, by = "ofndr_num") # 866 match numbers in CC data
+
 summary(clients$ofndr_num)
-temp.1 <- merge(salt.lake.discharges, clients, by = "ofndr_num", all.x = FALSE, all.y = FALSE)
+setdiff(temp.1$ofndr_num, salt.lake.discharges$ofndr_num)
 
-salt.lake.active <- salt.lake.data[salt.lake.data$active == TRUE,]
-salt.lake.active$active <- NULL
+ofndr_num_join$ofndr_num_match_i <- 1
+ofndr_num_match <- ofndr_num_join[,c("client_id", "ofndr_num_match_i")]
+temp.1 <- left_join(temp.1, ofndr_num_match, by = "client_id")  
+temp.1$ofndr_num_match_i[is.na(temp.1$ofndr_num_match_i)] <- 0
+table(temp.1$ofndr_num_match_i) # shouldn't there be 866 matches? why are there 1028?
 
-temp.2 <- merge(salt.lake.active, temp.1, by = "client_id", all.x = FALSE, all.y = FALSE)
+temp.1 <- unique(temp.1)
+client_count <- temp.1 %>% group_by(client_id) %>% add_count(client_id) %>% filter(n != 1)
 
+# Join on first and last name
+first_last_join <- inner_join(salt.lake.discharges, temp.1, by = c("last_name", "first_name")) # 363 matches
 
-## Compare temp.2 with merge of surveys and salt.lake.data
-temp.3 <- merge(salt.lake.active, surveys, by.x = c("client_id", "user_id"), 
-               by.y = c("surveys_client_id", "surveys_user_id"), 
-               all.x = TRUE, all.y = FALSE)
+nrow(first_last_join[first_last_join$ofndr_num_match_i == 1,]) # 93 ofndr_num matches in first_last_join
+nrow(first_last_join[first_last_join$ofndr_num_match_i == 0,]) # 270 first_last matches that ofndr_num match didn't catch
 
-temp.4 <- merge(temp.2, temp.3, by = "client_id")
-# looks like a pretty fair amount of overlap...
+# Join on last name and search for first
+names_join <- inner_join(salt.lake.discharges, temp.1, by = "last_name")
+names_join$first_name_match <- stri_detect(names_join$first_name.x, fixed = names_join$client_first_name)
+names_join_match <- names_join %>% filter(first_name_match == TRUE) # 2591 matches 
 
+nrow(names_join_match[names_join_match$ofndr_num_match_i == 1,]) # 918 ofndr_num matches in names_join_match
+nrow(names_join_match[names_join_match$ofndr_num_match_i == 0,]) # 1673 names matches that ofndr_num match didn't catch
 
+names_potential_false_positives <- subset(names_join_match, !is.na(ofndr_num.x) & !is.na(ofndr_num.y))
 
+false_positives <- names_potential_false_positives[names_potential_false_positives$ofndr_num.x != names_potential_false_positives$ofndr_num.y,]
 
+names_join_match <- subset(names_join_match, !(ofndr_num.x %in% false_positives$ofndr_num.x))
+names_join_match <- subset(names_join_match, !(ofndr_num.x %in% false_positives$ofndr_num.y))
 
+# example of confusion about agcy_desc vs. department_id
+View(unique(names_join_match[(names_join_match$user_id.x == 7 & names_join_match$ofndr_num_match_i == 1), c(1,7,8,12,16,19)]))
 
+names(names_join_match)
+slc.matched <- names_join_match[,c("client_id","user_id.x","agcy_desc","department_id","end_dt",
+                                   "discharge_desc","discharge_cat","client_created_at","client_created_at_backup",
+                                   "client_created_at_num","active","ofndr_num_match_i")]
 
+# deduping 
+slc.matched <- unique(slc.matched)
 
+slc.matched[slc.matched$client_id==277,]
+filter(slc.matched, slc.matched$user_id.x == 7)
+filter(ofndr_num_join, ofndr_num_join$user_id.x == 13)
+head(slc.matched,20)
 
+# are any POs assigned to more than 1 department? NO
+slc.matched[,c(2,4)] %>% group_by(user_id.x) %>% summarize(n_distinct(department_id))
+aggregate(department_id ~ user_id.x, slc.matched, function(x) length(unique(x)))
 
+unique(slc.matched$user_id.x[slc.matched$department_id == 1])
 
+# find clients who have more than one outcome (sometimes different user for each outcome, sometimes not)
+# multiple_client_appearances <- slc.matched %>% group_by(client_id) %>% add_count() %>% filter(n != 1)
+# names(multiple_client_appearances)[13] <- "count_client_appearances"
 
+# merge messages with these clients
+# mult_client_msgs <- merge(messages, multiple_client_appearances, by.x = c("client_id", "user_id"), by.y = c("client_id", "user_id.x"), all.x = TRUE, all.y = TRUE)
+# mult_client_msgs <- mult_client_msgs %>% filter(!(is.na(count_client_appearances)))
+# for client/user pairs with more than one outcome, messages are now doubled (associated with each outcome)
 
+## which messages should be associated with each outcome? 
 
+# find last message before outcome date 
+# mult_client_msgs$add_hrs_min_sec <- paste(as.character(mult_client_msgs$end_dt), "12:00:00 EDT", sep=" ")
 
+# mult_client_msgs$end_dt_converted <- as.POSIXct(mult_client_msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
 
+# mult_client_msgs$end_dt_num <- as.numeric(mult_client_msgs$end_dt_converted)
 
+# mult_client_msgs$time_diff <- mult_client_msgs$end_dt_num - mult_client_msgs$send_at_num # time between outcome and message
 
-# Rate of tech violations
+# mult_client_msgs <- mult_client_msgs %>% filter(time_diff > 0) # only messages before the outcome
 
-pima.violations <- unique(pima.outcomes[,c(1,2,3,16)])
-table(pima.violations$violation)
+# last_msg <- mult_client_msgs %>% group_by(client_id, end_dt_num) %>% summarize(time_last_msg_to_outcome = min(time_diff))
+# last_msg$last_msg_i <- 1 # last message indicator
 
-pima.matched.violations <- merge(pima.violations, pima.matched.active, by = c("client_RSN"))
-table(pima.matched.violations$violation)
+# find first message in relationship/outcome
+# first_msg_to_client <- mult_client_msgs %>% group_by(client_id, end_dt_num) %>% summarize(time_first_msg_to_client = max(time_diff))
+# first_msg_to_client$first_msg_to_client_i <- 1 # first message indicator -- but this is WRONG for clients with more than one outcome
 
-pima.unmatched.violations <- anti_join(pima.violations, pima.matched.active, by = "client_RSN")
-table(pima.unmatched.violations$violation)
+# mult_client_msgs <- merge(messages, multiple_client_appearances, by.x = c("client_id", "user_id"), by.y = c("client_id", "user_id.x"), all.x = TRUE, all.y = TRUE)
+# mult_client_msgs <- mult_client_msgs %>% filter(!(is.na(count_client_appearances)))
 
-prop.test(c(423, 1185), c(789,2095))
+# mult_client_msgs$add_hrs_min_sec <- paste(as.character(mult_client_msgs$end_dt), "12:00:00 EDT", sep=" ")
 
+# mult_client_msgs$end_dt_converted <- as.POSIXct(mult_client_msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
 
+# mult_client_msgs$end_dt_num <- as.numeric(mult_client_msgs$end_dt_converted)
 
+# mult_client_msgs$time_diff <- mult_client_msgs$end_dt_num - mult_client_msgs$send_at_num 
 
+# mult_client_msgs_find_breaks <- mult_client_msgs %>% filter(time_diff < 0) # only messages after the outcome
 
-###########################
-### Munging survey data ###
-###########################
+# first_msg_after_outcome <- mult_client_msgs_find_breaks %>% group_by(client_id, end_dt_num) %>% summarize(first_msg_after_outcome = max(time_diff))
+# first_msg_after_outcome$first_msg_after_outcome_i <- 1 # max negative value is the first message of the NEXT outcome (but how to affix this value to next outcome?)
+# client_end_date_nums <- unique(mult_client_msgs[,c(1,37)])
 
-# Dedupe surveys
-find_multiple_outcomes <- aggregate(surveys$surveys_client_id, by=list(surveys$surveys_client_id, surveys$surveys_user_id), FUN = length)
+# client_end_date_nums <- subset(client_end_date_nums, !is.na(end_dt_num))
+
+# mult_client_msgs <- merge(messages, multiple_client_appearances, by.x = c("client_id", "user_id"), by.y = c("client_id", "user_id.x"), all.x = TRUE, all.y = TRUE)
+# mult_client_msgs <- mult_client_msgs %>% filter(!(is.na(count_client_appearances)))
+
+# mult_client_msgs$add_hrs_min_sec <- paste(as.character(mult_client_msgs$end_dt), "12:00:00 EDT", sep=" ")
+
+# mult_client_msgs$end_dt_converted <- as.POSIXct(mult_client_msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
+
+# mult_client_msgs$end_dt_num <- as.numeric(mult_client_msgs$end_dt_converted)
+
+# mult_client_msgs <- mult_client_msgs %>% filter(!is.na(X))
+
+# outcome_msg_time_range <- merge(last_msg, first_msg, by = c("client_id", "end_dt_num"))
+# class(outcome_msg_time_range$date_msgs_end_num)
+
+# outcome_msg_time_range$date_msgs_begin_num <- outcome_msg_time_range$end_dt_num - (outcome_msg_time_range$time_first_msg_to_outcome+3600)
+# outcome_msg_time_range$date_msgs_end_num <- outcome_msg_time_range$end_dt_num - (outcome_msg_time_range$time_last_msg_to_outcome-3600)
+
+# mult_client_msgs_w_range <- merge(mult_client_msgs, outcome_msg_time_range, by = c("client_id", "end_dt_num"))
+# names(mult_client_msgs_w_range)
+# mult_client_msgs_w_range$date_msgs_begin_num <- as.numeric(as.character(mult_client_msgs_w_range$date_msgs_begin_num))
+# mult_client_msgs_w_range$date_msgs_end_num <- as.numeric(as.character(mult_client_msgs_w_range$date_msgs_end_num))
+
+# mult_client_msgs_subset_by_outcome <- subset(mult_client_msgs_w_range, send_at_num < date_msgs_end_num)
+
+# mult_client_msgs <- merge(mult_client_msgs, last_msg, by.x = c("client_id", "time_diff"), 
+#                           by.y = c("client_id", "last_msg"), all.x = TRUE, all.y = TRUE)  
+# mult_client_msgs$last_msg_i[is.na(mult_client_msgs$last_msg_i)] <- 0
+
+# mult_client_msgs <- merge(mult_client_msgs, first_msg, by.x = c("client_id", "time_diff"), 
+#                           by.y = c("client_id", "first_msg"), all.x = TRUE, all.y = TRUE)  
+# mult_client_msgs$first_msg_i[is.na(mult_client_msgs$first_msg_i)] <- 0
+
+# View(mult_client_msgs[,c(1,3,6,13,32,45,47)])
+# This seems fine for user/client pairs with one outcome.
+# But with two outcomes for same pair, things are weird.
+# user 7/client 277
+# user 7/client 4198
+# user 11/client 3498
+# Msg dates don't seem to make sense with outcome dates. (last msg date may be months before outcome)
+# Msgs may be repeated for both outcomes. (then first and last are wrong)
+# Sometimes both outcomes get same last msg because there are no msgs between first and second outcome
+
+##
+
+client_end_date_nums <- unique(mult_client_msgs[,c(1,37)])
+
+practice_dt <- client_end_date_nums[client_end_date_nums$client_id %in% c(585,277),]
+practice_dt <- practice_dt %>% arrange(client_id, end_dt_num) %>% mutate(id = row_number())
+
+n <- nrow(practice_dt)
+
+for (i in 1:n) {
+  client_id <- practice_dt$client_id[i]
+  if (practice_dt$id[i] == 1) {print ("first row of data")}
+  else if (practice_dt$id[i] == n) {print ("last row of data")}
+  else if (practice_dt$client_id[i] != practice_dt$client_id[i-1]) {print ("first row of group")}
+  else if (practice_dt$client_id[i] != practice_dt$client_id[i+1]) {print ("last row of group")}
+  else {print ("next row has same client_id")}
+}
+
+
+n <- nrow(practice_dt)
+outcome_range <- cbind(data.frame(matrix(nrow=0,ncol=3)))
+
+for (i in 1:n) {
+  client_id <- practice_dt$client_id[i]
+  if (practice_dt$id[i] == 1) {
+    # first row of data
+    low_edge <- 0
+    high_edge <- practice_dt$end_dt_num[i]
+    row_range <- cbind(client_id, low_edge, high_edge)
+    outcome_range <- rbind(outcome_range, row_range)
+  }
+  else if (practice_dt$id[i] == n) {
+    # last row of data
+    low_edge <- practice_dt$end_dt_num[i-1]
+    high_edge <- practice_dt$end_dt_num[i]
+    row_range <- cbind(client_id, low_edge, high_edge)
+    outcome_range <- rbind(outcome_range, row_range)
+    }
+  else if (practice_dt$client_id[i] != practice_dt$client_id[i-1]) {
+    # first row of group
+    low_edge <- 0
+    high_edge <- practice_dt$end_dt_num[i]
+    row_range <- cbind(client_id, low_edge, high_edge)
+    outcome_range <- rbind(outcome_range, row_range)
+    }
+  else if (practice_dt$client_id[i] != practice_dt$client_id[i+1]) {
+    # last row of group
+    low_edge <- practice_dt$end_dt_num[i-1]
+    high_edge <- practice_dt$end_dt_num[i]
+    row_range <- cbind(client_id, low_edge, high_edge)
+    outcome_range <- rbind(outcome_range, row_range)
+    }
+  else {
+    # next row has same client_id
+    low_edge <- practice_dt$end_dt_num[i-1]
+    high_edge <- practice_dt$end_dt_num[i]
+    row_range <- cbind(client_id, low_edge, high_edge)
+    outcome_range <- rbind(outcome_range, row_range)
+    }
+}
+
+### Strategy: attach matched outcomes to messages, separate by ranges, then filter to dates within 2 months of outcome date
+
+names(slc.matched)[2] <- "user_id"
+
+matched.msgs <- merge(slc.matched, messages, by = c("client_id", "user_id"), all.x = FALSE, all.y = FALSE)
+
+matched.msgs$add_hrs_min_sec <- paste(as.character(matched.msgs$end_dt), "12:00:00 EDT", sep=" ")
+
+matched.msgs$end_dt_converted <- as.POSIXct(matched.msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
+
+matched.msgs$end_dt_num <- as.numeric(matched.msgs$end_dt_converted)
+
+client_id.end_dt_num.matched <- unique(matched.msgs[,c(1,36)])
+
+end_dates_ids <- client_id.end_dt_num.matched %>% arrange(client_id, end_dt_num) %>% mutate(id = row_number())
+
+n <- nrow(end_dates_ids)
+outcome_range <- cbind(data.frame(matrix(nrow=0,ncol=3)))
+
+for (i in 1:n) {
+  client_id <- end_dates_ids$client_id[i]
+  end_dt_num <- end_dates_ids$end_dt_num[i]
+  if (end_dates_ids$id[i] == 1) {
+    low_edge <- 0
+    row_range <- cbind(client_id, low_edge, end_dt_num)
+    outcome_range <- rbind(outcome_range, row_range)
+  }
+  else if (end_dates_ids$id[i] == n) {
+    low_edge <- end_dates_ids$end_dt_num[i-1]
+    row_range <- cbind(client_id, low_edge, end_dt_num)
+    outcome_range <- rbind(outcome_range, row_range)
+  }
+  else if (end_dates_ids$client_id[i] != end_dates_ids$client_id[i-1]) {
+    low_edge <- 0
+    row_range <- cbind(client_id, low_edge, end_dt_num)
+    outcome_range <- rbind(outcome_range, row_range)
+  }
+  else if (end_dates_ids$client_id[i] != end_dates_ids$client_id[i+1]) {
+    low_edge <- end_dates_ids$end_dt_num[i-1]
+    row_range <- cbind(client_id, low_edge, end_dt_num)
+    outcome_range <- rbind(outcome_range, row_range)
+  }
+  else {
+    low_edge <- end_dates_ids$end_dt_num[i-1]
+    row_range <- cbind(client_id, low_edge, end_dt_num)
+    outcome_range <- rbind(outcome_range, row_range)
+  }
+}
+
+temp.3 <- merge(matched.msgs, outcome_range, by = c("client_id", "end_dt_num"), all = TRUE)
+
+matched.msgs.filtered <- temp.3 %>% filter(send_at_num > low_edge) %>% filter(send_at_num < end_dt_num)
+# msgs now uniquely associated with outcomes
+
+temp.4 <- matched.msgs.filtered %>% group_by(client_id, end_dt_num) %>% summarize(last_msg_num = max(send_at_num)) %>%
+  filter((end_dt_num - last_msg_num) < 5184000) # max msg is less than 2 months before end_dt
+
+temp.4$legit_relationship_i <- 1
+
+matched.msgs.filtered <- merge(matched.msgs.filtered, temp.4, by = c("client_id", "end_dt_num"), all = TRUE)
+
+matched.msgs.filtered <- matched.msgs.filtered %>% filter(legit_relationship_i == 1)
+
+View(matched.msgs.filtered[matched.msgs.filtered$client_id == 277,c(1,4,3,5,32,38,2)]) # still wrong!
+View(matched.msgs[matched.msgs$client_id == 277,c(1,3,2,4,31,36)])
+# what's weird about this one is that most of the messages are AFTER the first end_dt but still way BEFORE the second end_dt
+# maybe reassigned to a non-CC agent
+
+table(matched.msgs.filtered$agcy_desc, matched.msgs.filtered$department_id) # a higher % align than before...
+table(slc.matched$agcy_desc, slc.matched$department_id)
+
+# Which are the mismatches?
+matched.msgs.filtered[matched.msgs.filtered$agcy_desc == "PROBATION SERVICES" & matched.msgs.filtered$department_id == 2,c("client_id", "user_id")]
+matched.msgs.filtered[matched.msgs.filtered$agcy_desc == "PRETRIAL SERVICES" & matched.msgs.filtered$department_id == 1,c("client_id", "user_id")]
+
+# mismatches in dept 2
+messages$body[messages$client_id == 4388 & messages$user_id == 52] # text says probation (agrees with agcy_desc)
+messages$body[messages$client_id == 3793 & messages$user_id == 52] # appears to be probation (agrees with agcy_desc)
+messages$body[messages$client_id == 1181 & messages$user_id == 46] # text says pretrial (agrees with dept_id)
+
+
+# mismatches in dept 1
+messages$body[messages$client_id == 295 & messages$user_id == 95] # text says probation (agrees with dept_id)
+messages$body[messages$client_id == 4300 & messages$user_id == 48] # text says probation (agrees with dept_id)
+messages$body[messages$client_id == 4329 & messages$user_id == 18] # text says probation but alerts look like pretrial (agrees with dept_id)
+messages$body[messages$client_id == 3626 & messages$user_id == 19] # text says probation (agrees with dept_id)
+messages$body[messages$client_id == 5470 & messages$user_id == 117] # appears to be probation (agrees with dept_id)
+messages$body[messages$client_id == 1756 & messages$user_id == 100] # not clear, looks like pretrial? (agrees with agcy_desc)
+messages$body[messages$client_id == 1705 & messages$user_id == 116] # looks like probation, but "you are getting released on pre-trial"? (agrees with agcy_desc)
+
+unique_outcomes_and_relationships <- unique(matched.msgs.filtered[,c(1:5)])
+table(unique_outcomes_and_relationships$agcy_desc, unique_outcomes_and_relationships$department_id)
+
+# more than one relationship per outcome 
+unique_outcomes_and_relationships %>% group_by(client_id, end_dt_num) %>% count() %>% filter(n != 1)
+# drop them!
+matched.msgs.filtered <- matched.msgs.filtered[!(matched.msgs.filtered$client_id %in% c(317,536,1108,1622,2180,2340,2368)),]
+
+# Drop mismatches and court services
+matched.msgs.filtered <- matched.msgs.filtered %>% 
+  filter((agcy_desc == "PROBATION SERVICES" & department_id == 1) | (agcy_desc == "PRETRIAL SERVICES" & department_id == 2))
+
+# Drop unnecessary variables
+slc.messages <- matched.msgs.filtered[,c("client_id","user_id","department_id","agcy_desc","end_dt","end_dt_num",
+                                                  "discharge_desc","discharge_cat","client_created_at.x","client_created_at_backup.x",
+                                                  "client_created_at_num.x","active","body","inbound","send_at","send_at_backup",
+                                                  "send_at_num","dates_ext","created_at","created_at_backup","created_at_num")]
+names(slc.messages)[9] <- "client_created_at"
+names(slc.messages)[10] <- "client_created_at_backup"
+names(slc.messages)[11] <- "client_created_at_num"
+
+
+########################
+### MUNGING MESSAGES ###
+########################
+
+users <- users[,c("id", "full_name")]
+clients <- clients[,c("client_id", "first_name", "last_name")]
+
+users$user_first_name <- sapply(strsplit(as.character(users$full_name), ' '), function(x) x[1])
+users$user_last_name <- sapply(strsplit(as.character(users$full_name), ' '), function(x) x[length(x)])
+users <- users[ !(users$id %in% c(1,2,53,106,120,131,136,139,147,154,157,158)), ]
+
+names(clients)[2] <- "client_first_name"
+names(clients)[3] <- "client_last_name"
+
+slc.messages <- merge(slc.messages, users, by.x = "user_id", by.y = "id", all.x = TRUE, all.y = FALSE)
+slc.messages <- merge(slc.messages, clients, by = "client_id", all.x = TRUE, all.y = FALSE)
+
+temp <- slc.messages
+
+temp$created_at <- as.POSIXct(temp$created_at_num, origin = '1970-01-01')
+temp$send_at <- as.POSIXct(temp$send_at_num, origin = '1970-01-01')
+temp$client_created_at <- as.POSIXct(temp$client_created_at_num, origin = '1970-01-01')
+
+# Message scheduling -- time diff in hours
+temp$scheduled_diff <- difftime(temp$send_at, temp$created_at, units = "hours")
+
+temp$scheduled_diff[temp$scheduled_diff < 0] <- 0
+temp$scheduled_diff[temp$scheduled_diff > 336] <- 336
+
+# Day of week
+temp$send_at_DoW <- wday(temp$send_at, label = TRUE)
+
+# Time of day (bins)
+temp$send_at_time <- hour(temp$send_at) + 
+  minute(temp$send_at)/60 + 
+  second(temp$send_at)/3600
+
+bins <- cut(temp$send_at_time, 
+            breaks = c(0,7,12,17,21,24),
+            labels = c("Swing", "Morning", "Afternoon", "Evening", "Night"))
+
+temp$send_at_ToD_bins <- bins
+
+temp$send_at_ToD_bins <- temp$send_at_ToD_bins %>% fct_collapse(Night = c("Swing", "Night"))
+table(temp$send_at_ToD_bins)
+
+# Message contains future appointment date
+temp$has_future_date <- as.numeric(temp$dates_ext != "[]") # Indicator of date in text
+
+# Delete "inbound" messages that are not from clients 
+temp$system_messages <- as.numeric(grepl("was transferred to you", temp$body))
+temp <- temp[temp$system_messages == 0,]
+temp$system_messages <- NULL
+
+# Create dataframes
+all_messages <- temp
+user_messages <- temp[temp$inbound == "False",]
+client_messages <- temp[temp$inbound == "True",]
+
+cache('all_messages')
+cache('user_messages')
+cache('client_messages')
+
+
+##########################
+### RELATIONSHIP LEVEL ###
+##########################
+
+## Create aggregate tables for variables of interest
+
+# Maximum scheduled time difference
+max_scheduled_diff <- aggregate(user_messages$scheduled_diff,
+                                by=list(user_messages$client_id, 
+                                        user_messages$user_id), 
+                                max)
+colnames(max_scheduled_diff) <- c("client_id","user_id","max_scheduled_diff")
 
-single_outcomes <- subset(find_multiple_outcomes, x == 1)
-colnames(single_outcomes)[1:2] <- c("surveys_client_id", "surveys_user_id")
+# Number of messages by day of week
+user_messages$message_i <- 1
 
-surveys_deduped <- merge(surveys, single_outcomes, by = c("surveys_client_id", "surveys_user_id"), all.x = FALSE, all.y = TRUE)
+DoW_message <- spread(user_messages, send_at_DoW, message_i, fill = 0)
 
-# Violation indicator variable
-surveys_deduped$violation_i <- as.numeric(grepl("probation violation", surveys_deduped$surveys_text))
+DoW_message_count <- aggregate(cbind(DoW_message[,c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")]), 
+                               by=list(DoW_message$client_id, 
+                                       DoW_message$user_id), FUN = sum)
+colnames(DoW_message_count) <- c("client_id","user_id", "Sun_messages", "Mon_messages", "Tue_messages",
+                                 "Wed_messages", "Thu_messages", "Fri_messages", "Sat_messages")
 
-# Merge messages and deduped surveys
-temp.a <- merge(messages, surveys_deduped, by.x = c("client_id", "user_id"), by.y = c("surveys_client_id", "surveys_user_id"), all.x = FALSE, all.y = FALSE)
+DoW_message_count$Wkd_messages <- DoW_message_count$Sun_messages + DoW_message_count$Sat_messages
 
-relationships <- unique(temp.a[,c("client_id", "user_id")])
+# Number of messages by time of day
+ToD_message <- spread(user_messages, send_at_ToD_bins, message_i, fill = 0)
 
-relationships <- aggregate(relationships$user_id, by = list(relationships$client_id), FUN = length)
-colnames(relationships) <- c("client_id","users_n")
+names(ToD_message)[27] <- "ToD_Missing"
 
-kept.clients <- subset(relationships, users_n==1)
+ToD_message_count <- aggregate(cbind(ToD_message[,c("Night", "Morning", "Afternoon", "Evening", "ToD_Missing")]), by = list(ToD_message$client_id,
+                                                                                                                            ToD_message$user_id), FUN = sum)
+colnames(ToD_message_count) <- c("client_id","user_id", "Night_messages", "Morning_messages", "Afternoon_messages", 
+                                 "Evening_messages", "ToD_Missing_messages")
 
-temp.a <- subset(temp.a, client_id %in% kept.clients$client_id)
+# Number of future appointment dates
+number_appt_reminders <- aggregate(user_messages$has_future_date, 
+                                   by=list(user_messages$client_id,
+                                           user_messages$user_id), FUN = sum) 
+colnames(number_appt_reminders) <- c("client_id", "user_id", "future_appointment_date")
 
-# Restrict data to exclude last month of relationship (see line 214 for only last month)
+# Number of client messages
+client_msg_count <- aggregate(as.numeric(all_messages$inbound == "True"), 
+                              by = list(all_messages$client_id, all_messages$user_id),
+                              FUN = sum)
+colnames(client_msg_count) <- c("client_id", "user_id", "client_msg_count")
 
-difftime('2018-07-01', '2018-08-01', units = 'secs') # how many seconds in a month?
+# Number of user messages
+user_msg_count <- aggregate(as.numeric(all_messages$inbound == "False"), 
+                            by = list(all_messages$client_id, all_messages$user_id),
+                            FUN = sum)
+colnames(user_msg_count) <- c("client_id", "user_id", "user_msg_count")
 
-temp.a$cutoff <- temp.a$surveys_created_at_num - 2678400
+# Median user message length
+user_messages$user_msg_length <- nchar(as.character(user_messages$body))
 
-temp.a <- subset(temp.a, cutoff > send_at_num)
+med_user_msg_length <- aggregate(user_messages$user_msg_length,
+                                 by = list(user_messages$client_id,
+                                           user_messages$user_id),
+                                 FUN = median)
+colnames(med_user_msg_length) <- c("client_id", "user_id", "med_user_msg_length")
 
-# Find the next PO message after a client message
+# outcome data
 
-count_client_msgs <- temp.a %>% group_by(client_id,user_id) %>% summarize(client_msgs_n = sum(inbound == TRUE))
+pretrial_outcomes <- all_messages %>% filter(department_id == 2) %>% 
+  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
 
-count_PO_msgs <- temp.a %>% group_by(client_id,user_id) %>% summarize(user_msgs_n = sum(inbound == FALSE))
+pretrial_outcomes <- unique(pretrial_outcomes[,c("client_id","user_id","discharge_cat")])
 
-PO_msgs <- subset(temp.a, inbound==FALSE)
-names(PO_msgs) <- paste("PO_msgs", names(PO_msgs), sep="_")
+levels(pretrial_outcomes$discharge_cat)
+pretrial_outcomes$discharge_cat <- factor(pretrial_outcomes$discharge_cat)
+levels(pretrial_outcomes$discharge_cat) <- c(FALSE, TRUE)
 
-client_msgs <- subset(temp.a, inbound==TRUE)
-names(client_msgs) <- paste("client_msgs", names(client_msgs), sep="_")
+names(pretrial_outcomes)[3] <- "supervision_failure"
 
-potential_replies <- merge(PO_msgs, client_msgs, by.x=c("PO_msgs_client_id", "PO_msgs_user_id"),
-                           by.y=c("client_msgs_client_id", "client_msgs_user_id"), all.x = TRUE, all.y = TRUE)
+table(pretrial_outcomes$supervision_failure) # is this right? 41%, much higher failure rate than Baltimore
 
-potential_replies$response_time <- potential_replies$PO_msgs_send_at_num - potential_replies$client_msgs_send_at_num
+# quick check
+s <- salt.lake.discharges %>% filter(agcy_desc == "PRETRIAL SERVICES") %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+table(s$discharge_cat) # 37% failure rate
+# Manya says failure rate is much higher in SLC, started above 50% and went down with use of CC
+# but she would have expected not quite this high...
 
-potential_replies_PO_to_client <- subset(potential_replies, response_time>1)
+# merge all variables into one dataframe
 
-PO_replies <- potential_replies_PO_to_client %>% group_by(PO_msgs_client_id, PO_msgs_user_id, PO_msgs_id) %>% 
-  summarise(PO_reply_time = min(response_time))
+temp1 <- merge(pretrial_outcomes, max_scheduled_diff, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-temp.b <- PO_replies %>% group_by(PO_msgs_client_id, PO_msgs_user_id) %>% summarize(med_response_time = median(PO_reply_time))
+temp1 <- merge(temp1, DoW_message_count, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-temp.c <- merge(count_client_msgs, count_PO_msgs, by = c("client_id", "user_id"))
+temp1 <- merge(temp1, ToD_message_count, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-temp.c <- merge(temp.c, temp.b, by.x = c("client_id", "user_id"), by.y = c("PO_msgs_client_id", "PO_msgs_user_id"), 
-                all.x = TRUE, all.y = TRUE)
+temp1 <- merge(temp1, number_appt_reminders, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-temp.d <- merge(temp.c, surveys_deduped, by.x = c("client_id", "user_id"), by.y = c("surveys_client_id", "surveys_user_id"))
+temp1 <- merge(temp1, client_msg_count, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-# Length of client time on CC (for normalization)
+temp1 <- merge(temp1, user_msg_count, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-client_time <- clients[,c(1,5)]
-names(client_time)[2] <- "client_created_at"
-client_time$client_created_at_num <- as.numeric(as.POSIXlt(client_time$client_created_at, tz = "America/New_York"))
+temp1 <- merge(temp1, med_user_msg_length, by=c("user_id","client_id"), 
+               all.x = FALSE, all.y = FALSE)
 
-temp.e <- temp.d %>% group_by(client_id) %>% summarize(last_survey_num = max(as.numeric(as.POSIXlt(surveys_updated_at))))
 
-temp.e$last_survey <- as.POSIXlt(temp.e$last_survey_num, origin = '1970-01-01')
+temp1$PO <- as.factor(temp1$user_id)
+temp1$user_id <- as.factor(temp1$user_id) 
+temp1$client_id <- as.factor(temp1$client_id)
 
-calc_client_duration <- merge(client_time, temp.e, by=c("client_id"))
-calc_client_duration$days_on_cc <- difftime(calc_client_duration$last_survey, calc_client_duration$client_created_at, units="days")
-calc_client_duration$months_on_cc <- as.numeric(calc_client_duration$days_on_cc) / 30
+# which PO should be reference level?
+table(temp1$supervision_failure,temp1$PO)
+temp1$PO <- relevel(temp1$PO, ref="45")
 
-temp.f <- merge(temp.d, calc_client_duration, by="client_id")
+# Create dataframe
+slc.dtf <- temp1
 
-temp.f$client_msgs_per_month <- temp.f$client_msgs_n/temp.f$months_on_cc
-temp.f$user_msgs_per_month <- temp.f$user_msgs_n/temp.f$months_on_cc
+cache('slc.dtf')
 
-temp.f$last_survey <- NULL
 
-temp.f <- subset(temp.f, months_on_cc>1)
 
-temp.f$crime_or_abscond_i <- as.numeric(grepl("Absconded", temp.f$surveys_text) | grepl("criminal", temp.f$surveys_text))
 
-# Number of failures, summary stats on msg_count by PO
+### OK to here ###
 
-PO_messaging <- temp.f %>% group_by(user_id) %>% summarize(number_of_violations = sum(violation_i),
-                                                           number_of_crimes = sum(crime_or_abscond_i),
-                                                           med_msg_count = median(user_msgs_per_month),
-                                                           mean_msg_count = mean(user_msgs_per_month),
-                                                           min_msg_count = min(user_msgs_per_month),
-                                                           max_msg_count = max(user_msgs_per_month))
+#########################################################
+### TEXT LEVEL: WHICH PRETRIAL USER MSGS GET REPLIES? ###
+#########################################################
 
-number_of_clients <- temp.f %>% group_by(user_id) %>% tally() %>% mutate(number_of_clients = n) # of clients per PO
+client_messages$client_id <- as.factor(as.character(client_messages$client_id))
+user_messages$client_id <- as.factor(as.character(user_messages$client_id))
 
-PO_messaging <- merge(PO_messaging, number_of_clients, by = "user_id")
+first_client_reply <- client_messages %>% group_by(client_id) %>% summarize(min_time = min(send_at_num)) # time of first client msg
 
-PO_messaging <- subset(PO_messaging, user_id != 36) # crazy outlier
+temp2 <- user_messages
 
-PO_messaging$percent_violations <- PO_messaging$number_of_violations/PO_messaging$number_of_clients # % failure by PO
+temp2 <- merge(temp2, first_client_reply, by = c("client_id"))
 
-PO_messaging$percent_crimes <- PO_messaging$number_of_crimes/PO_messaging$number_of_clients # % failure by PO
+setdiff(first_client_reply$client_id, user_messages$client_id)
+setdiff(first_client_reply$client_id, temp2$client_id)
 
-min_outcomes <- subset(PO_messaging, number_of_clients>9)
-min_outcomes <- subset(min_outcomes, percent_crimes!=0)
+temp2 <- temp2 %>% filter(send_at_num < min_time) # PO messages leading to a client reply
 
-min_outcomes[min_outcomes$user_id==36,]
-max(min_outcomes$max_msg_count)
+setdiff(first_client_reply$client_id, temp2$client_id) # there are still about 100 clients that don't come through into temp2
+# ground check looks ok -- 1113, 1230, 1339, 1383 all have first msg in relationship inbound
 
-pima.relationships <- temp.f
+msgs_leading_to_reply <- temp2
 
-cache('pima.relationships')
+first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id) %>% slice(which.max(send_at_num)) # the first user msg in a relationship that received a client reply (might be initial msg, might not)
 
-# Subset: relationships that ended in tech violations
-users_with_failures <- unique(pima.relationships$user_id[pima.relationships$violation_i==1])
-pima.relationships_with_failures <- subset(pima.relationships, user_id %in% users_with_failures)
+# number_msgs_to_reply <- aggregate(msgs_leading_to_reply$client_id, by = list(msgs_leading_to_reply$client_id), FUN = length) # how many user msgs before the first client msg
+# colnames(number_msgs_to_reply) <- c("client_id", "number_to_reply")
 
-cache('pima.relationships_with_failures')
+# number_msgs_to_reply$reply_to_initial <- as.numeric(number_msgs_to_reply$number_to_reply == 1) # client replied to first user msg (T/F)
 
-# The month prior to terminating (survey) -- see line 115
+# ultimately_replied <- merge(ultimately_replied, number_msgs_to_reply, by = c("client_id")) # all user msgs that eventually received a reply
 
-temp.a$cutoff <- temp.a$surveys_created_at_num - 2678400
+# initial_msg_replied <- filter(first_msg_replied, reply_to_initial == 1) # initial user msgs that received a client reply
 
-temp.a$msg_is_in_last_month <- as.numeric(temp.a$send_at_num > temp.a$cutoff)
+## NEW APPROACH
 
-#temp.a$client_id <- as.factor(temp.a$client_id)
-#temp.a$user_id <- as.factor(temp.a$user_id)
+# indicator: is this user msg an initial msg? 
 
-PO_outgoing_msgs <- subset(temp.a, inbound==FALSE)
+initial_msg <- user_messages %>% group_by(client_id) %>% summarize(initial_msg = min(send_at_num))
+temp4 <- merge(user_messages, initial_msg, by = c("client_id"))
+temp4 <- temp4 %>% mutate(initial_msg_indicator = case_when(initial_msg == send_at_num ~ 1,
+                                                            initial_msg != send_at_num ~ 0))
 
-user_msgs_to_clients_in_last_month <- aggregate(PO_outgoing_msgs$msg_is_in_last_month, by=list(PO_outgoing_msgs$user_id, PO_outgoing_msgs$client_id), FUN=sum)
-colnames(user_msgs_to_clients_in_last_month) <- c("user_id","client_id","msgs_in_last_month")
-user_msgs_to_clients_in_last_month$any_msgs_to_client_i <- as.numeric(user_msgs_to_clients_in_last_month$msgs_in_last_month>0)
+# indicator: did the client respond to this user msg?
 
-final_month_proportion_clients_no_messages_by_user <- aggregate(user_msgs_to_clients_in_last_month$any_msgs_to_client_i, by=list(user_msgs_to_clients_in_last_month$user_id), FUN=mean)
-colnames(final_month_proportion_clients_no_messages_by_user) <- c("user_id","proportion_clients_no_final_month_msg")
-final_month_proportion_clients_no_messages_by_user$proportion_clients_no_final_month_msg <- 1 - final_month_proportion_clients_no_messages_by_user$proportion_clients_no_final_month_msg
+msg_replied <- first_msg_replied[c("client_id","send_at_num")]
+msg_replied$msg_replied_i <- 1
 
-final_month_avg_messages_by_user <- aggregate(user_msgs_to_clients_in_last_month$msgs_in_last_month, by=list(user_msgs_to_clients_in_last_month$user_id), FUN=mean)
-colnames(final_month_avg_messages_by_user) <- c("user_id","avg_msgs_to_clients_final_month")
+temp4 <- merge(temp4, msg_replied, by = c("client_id", "send_at_num"), all.x = TRUE, all.y = TRUE)
+temp4$msg_replied_i[is.na(temp4$msg_replied_i)] <- 0
 
-final_month_number_clients_n_messages_by_user <- aggregate(user_msgs_to_clients_in_last_month$any_msgs_to_client_i, by=list(user_msgs_to_clients_in_last_month$user_id), FUN=length)
-colnames(final_month_number_clients_n_messages_by_user) <- c("user_id","n_clients_w_survey_outcome")
+temp4 <- temp4[c("client_id", "user_id", "id", "body", "inbound", 
+                 "user_first_name", "user_last_name", "client_first_name", "client_last_name",
+                 "created_at", "created_at_backup", "created_at_num", 
+                 "send_at", "send_at_backup", "send_at_num",
+                 "send_at_DoW", "send_at_ToD_bins", "initial_msg_indicator", "msg_replied_i", 
+                 "future_appointment_date", "scheduled_diff", "user_msg_length")]
 
-final_month_stats_by_user <- merge(final_month_proportion_clients_no_messages_by_user, final_month_avg_messages_by_user, 
-                                   by="user_id")
+# add variables of interest
 
-final_month_stats_by_user <- merge(final_month_stats_by_user, final_month_number_clients_n_messages_by_user, by="user_id")
+temp4$greeting <- as.numeric(grepl("hello", temp4$body, ignore.case = TRUE) | 
+                               grepl("good morning", temp4$body, ignore.case = TRUE) |
+                               grepl("good afternoon", temp4$body, ignore.case = TRUE) |
+                               grepl("good evening", temp4$body, ignore.case = TRUE)) 
 
-PO_client_violations <- unique(temp.a[,c(1,2,31)])
+temp4$closing <- as.numeric(grepl("have a great", temp4$body, ignore.case = TRUE) | 
+                              grepl("have a good", temp4$body, ignore.case = TRUE) | 
+                              grepl("have a bless", temp4$body, ignore.case = TRUE) | 
+                              grepl("enjoy", temp4$body, ignore.case = TRUE) | 
+                              grepl("stay safe", temp4$body, ignore.case = TRUE))
 
-client_violation_rate <- aggregate(PO_client_violations$violation_i, by=list(PO_client_violations$user_id), FUN=mean)
-colnames(client_violation_rate) <- c("user_id","violation_rate")
+temp4$polite <- as.numeric(grepl("please", temp4$body, ignore.case = TRUE) |
+                             grepl("thank you", temp4$body, ignore.case = TRUE) |
+                             grepl("courtesy", temp4$body, ignore.case = TRUE) |
+                             grepl("friendly", temp4$body, ignore.case = TRUE))
 
-final_month_stats_by_user <- merge(final_month_stats_by_user, client_violation_rate, by="user_id")
+temp4$business <- as.numeric((grepl("verif", temp4$body, ignore.case = TRUE) & !grepl("re-verif", temp4$body, ignore.case = TRUE)) |
+                               grepl("stub", temp4$body, ignore.case = TRUE) |
+                               grepl("letter", temp4$body, ignore.case = TRUE) |
+                               grepl("document", temp4$body, ignore.case = TRUE))
 
-write.csv(final_month_stats_by_user, "final_month_stats_by_user.csv", row.names=FALSE)
+temp4$problem <- as.numeric(grepl("warrant", temp4$body, ignore.case = TRUE) |
+                              grepl("fail", temp4$body, ignore.case = TRUE) |
+                              grepl("missed", temp4$body, ignore.case = TRUE) |
+                              grepl("violation", temp4$body, ignore.case = TRUE) |
+                              grepl("compliance", temp4$body, ignore.case = TRUE))
 
-unreliable_reporting <- c(4,7,13,18,20,21,22,24,28,29,32,37,42,45,56,61,62,66,75)
+temp4$urgency <- as.numeric(grepl("asap", temp4$body, ignore.case = TRUE) |
+                              grepl("a.s.a.p.", temp4$body, ignore.case = TRUE) |
+                              grepl("immediately", temp4$body, ignore.case = TRUE) |
+                              grepl("right away", temp4$body, ignore.case = TRUE) |
+                              grepl("imperative", temp4$body, ignore.case = TRUE))
 
-reliable_reporting <- subset(temp.a, !(user_id %in% unreliable_reporting))
+temp4$info <- as.numeric(grepl("will be closed", temp4$body, ignore.case = TRUE) |
+                           grepl("office is closed", temp4$body, ignore.case = TRUE) |
+                           grepl("closure", temp4$body, ignore.case = TRUE) |
+                           grepl("shutdown", temp4$body, ignore.case = TRUE) |
+                           grepl("phone lines", temp4$body, ignore.case = TRUE))
 
-####################################
-### Link clients and risk levels ###
-####################################
+temp4$yelling <- as.numeric(grepl("^[^a-z]*$", temp4$body))
 
-temp5a <- merge(clients, risk_levels, by.x = "phone_number", by.y = "tel_num", all.x = FALSE, all.y = FALSE)
+temp4$pls_respond <- as.numeric(grepl("respond to this text", temp4$body, ignore.case = TRUE) |
+                                  grepl("respond to this message", temp4$body, ignore.case = TRUE) |
+                                  grepl("acknowledge", temp4$body, ignore.case = TRUE) |
+                                  grepl("reply to this text", temp4$body, ignore.case = TRUE) |
+                                  grepl("reply to this message", temp4$body, ignore.case = TRUE))
 
-temp5a <- merge(temp5a, temp.f, by = c("client_id", "user_id"), all.x = FALSE, all.y = FALSE)
-# 157 matches
+# court date reminder/appointment date reminder
+msgs_with_dates <- temp4[temp4$future_appointment_date == 1,c("client_id", "user_id", "send_at_num", "body")]
 
-# Manya says column a in officers_client_roster is the client_id, try matching on this
-temp5b <- merge(clients, risk_levels, by.x = "client_id", by.y = "X", all.x = FALSE, all.y = FALSE)
+msgs_with_dates$court_date_reminder <- as.numeric((grepl("court date", msgs_with_dates$body, ignore.case = TRUE) &
+                                                     !grepl("date specified is your scheduled court date please report", msgs_with_dates$body, ignore.case = TRUE)) |
+                                                    grepl("your trial", msgs_with_dates$body, ignore.case = TRUE) | 
+                                                    grepl("jury trial", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("court today", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    (grepl("trial date", msgs_with_dates$body, ignore.case = TRUE) &
+                                                       !grepl("after the trial on the trial date", msgs_with_dates$body, ignore.case = TRUE)) |
+                                                    (grepl("court tomorrow", msgs_with_dates$body, ignore.case = TRUE) &
+                                                       !grepl("if you have court tomorrow", msgs_with_dates$body, ignore.case = TRUE)) |
+                                                    grepl("scheduled for trial", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("reminder of court", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("court on", msgs_with_dates$body, ignore.case = TRUE) |
+                                                    grepl("court this morning", msgs_with_dates$body, ignore.case = TRUE)
+)
 
-temp5b <- merge(temp5b, temp.f, by = c("client_id", "user_id"), all.x = FALSE, all.y = FALSE)
-# 256 matches
+msgs_with_dates$appointment_date_reminder <- as.numeric(grepl("check in", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report day", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report date", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report to", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report by", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report in", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report on", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("next appointment is", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report tomorrow", msgs_with_dates$body, ignore.case = TRUE) |
+                                                          grepl("report every", msgs_with_dates$body, ignore.case = TRUE))
 
-temp5c <- merge(clients, risk_levels, by.x = c("phone_number", "client_id"), by.y = c("tel_num", "X"), all.x = FALSE, all.y = FALSE)
-# no matches at all, so maybe the client_id match was a red herring?
+msgs_with_dates <- msgs_with_dates[,c("client_id", "send_at_num", "court_date_reminder", "appointment_date_reminder")]
+
+
+temp5 <- merge(temp4, msgs_with_dates, by = c("client_id", "send_at_num"), all.x = TRUE)
+
+# client name
+temp5$has_client_last_name <- stri_detect(temp5$body, fixed = temp5$client_last_name)
+temp5$has_client_first_name <- stri_detect(temp5$body, fixed = temp5$client_first_name)
+
+temp5$has_client_name <- as.numeric(temp5$has_client_last_name | temp5$has_client_first_name)
+
+# user name
+temp5$has_user_last_name <- stri_detect(temp5$body, fixed = temp5$user_last_name)
+temp5$has_user_first_name <- stri_detect(temp5$body, fixed = temp5$user_first_name)
+
+temp5$has_user_name <- as.numeric(temp5$has_user_last_name | temp5$has_user_first_name)
+
+# replace NAs in msgs_with_dates with 0
+temp5$appointment_date_reminder[is.na(temp5$appointment_date_reminder)] <- 0
+temp5$court_date_reminder[is.na(temp5$court_date_reminder)] <- 0
+
+## message similarity
+
+temp6 <- user_messages %>% full_join(user_messages, by = "user_id") 
+temp7 <- temp6 %>% filter(client_id.x != client_id.y)
+
+temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$body.y)) # this takes a very long time to run
+
+max_reuse_score <- temp7 %>% group_by(client_id.x, send_at_num.x) %>% summarize(max_reuse_score = max(reuse_score))
+
+cache('max_reuse_score')
+
+temp8 <- merge(temp5, max_reuse_score, by.x = c("client_id", "send_at_num"), by.y = c("client_id.x", "send_at_num.x"),
+               all.x = FALSE, all.y = FALSE)
+
+# Final tidy up
+temp8$PO <- as.factor(temp8$user_id)
+temp8$PO <- relevel(temp8$PO, ref="31")
+temp8$user_id <- as.factor(temp8$user_id)
+temp8$client_id <- as.factor(temp8$client_id)
+
+user_msgs_qualities <- temp8
+
+cache('user_msgs_qualities')
+
+################
+### PO LEVEL ###
+################
+
+temp.a <- cc.dtf %>% group_by(PO) %>% tally() %>% mutate(number_of_clients = n) # of clients per PO
+
+cc.dtf$supervision_failure <- as.numeric(cc.dtf$supervision_failure)
+
+# number of failures, summary stats on msg_count by PO
+temp.b <- cc.dtf %>% group_by(PO) %>% summarize(number_of_failures = sum(supervision_failure),
+                                                med_msg_count = median(user_msg_count),
+                                                mean_msg_count = mean(user_msg_count),
+                                                min_msg_count = min(user_msg_count),
+                                                max_msg_count = max(user_msg_count))
+
+temp.c <- merge(temp.a, temp.b, by = "PO")
+temp.c$n <- NULL
+
+temp.c$percent_failures <- temp.c$number_of_failures/temp.c$number_of_clients # % failure by PO
+
+temp.d <- user_msgs_qualities %>% group_by(PO) %>% summarize(mean_reuse_score = mean(max_reuse_score))
+
+temp.e <- merge(temp.c, temp.d, by = "PO", all.x = TRUE, all.y = FALSE)
+
+PO_data <- temp.e
+
+cache('PO_data')
+
 
 

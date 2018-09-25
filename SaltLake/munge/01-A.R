@@ -417,9 +417,31 @@ cache('user_messages')
 cache('client_messages')
 
 
-##########################
-### RELATIONSHIP LEVEL ###
-##########################
+####################################
+### RELATIONSHIP LEVEL: PRETRIAL ###
+####################################
+
+# outcome data
+
+pretrial_outcomes <- all_messages %>% filter(department_id == 2) %>% 
+  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+
+pretrial_outcomes <- unique(pretrial_outcomes[,c("client_id","user_id","discharge_cat","end_dt_num")])
+
+levels(pretrial_outcomes$discharge_cat)
+pretrial_outcomes$discharge_cat <- factor(pretrial_outcomes$discharge_cat)
+levels(pretrial_outcomes$discharge_cat) <- c(FALSE, TRUE)
+
+names(pretrial_outcomes)[3] <- "supervision_failure"
+
+table(pretrial_outcomes$supervision_failure) # is this right? 41%, much higher failure rate than Baltimore
+
+# quick check
+s <- salt.lake.discharges %>% filter(agcy_desc == "PRETRIAL SERVICES") %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+table(s$discharge_cat) # 37% failure rate
+# Manya says failure rate is much higher in SLC, started above 50% and went down with use of CC
+# but she would have expected not quite this high...
+
 
 ## Create aggregate tables for variables of interest
 
@@ -480,27 +502,6 @@ med_user_msg_length <- aggregate(user_messages$user_msg_length,
                                  FUN = median)
 colnames(med_user_msg_length) <- c("client_id", "user_id", "med_user_msg_length")
 
-# outcome data
-
-pretrial_outcomes <- all_messages %>% filter(department_id == 2) %>% 
-  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
-
-pretrial_outcomes <- unique(pretrial_outcomes[,c("client_id","user_id","discharge_cat")])
-
-levels(pretrial_outcomes$discharge_cat)
-pretrial_outcomes$discharge_cat <- factor(pretrial_outcomes$discharge_cat)
-levels(pretrial_outcomes$discharge_cat) <- c(FALSE, TRUE)
-
-names(pretrial_outcomes)[3] <- "supervision_failure"
-
-table(pretrial_outcomes$supervision_failure) # is this right? 41%, much higher failure rate than Baltimore
-
-# quick check
-s <- salt.lake.discharges %>% filter(agcy_desc == "PRETRIAL SERVICES") %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
-table(s$discharge_cat) # 37% failure rate
-# Manya says failure rate is much higher in SLC, started above 50% and went down with use of CC
-# but she would have expected not quite this high...
-
 # merge all variables into one dataframe
 
 temp1 <- merge(pretrial_outcomes, max_scheduled_diff, by=c("user_id","client_id"), 
@@ -534,30 +535,110 @@ table(temp1$supervision_failure,temp1$PO)
 temp1$PO <- relevel(temp1$PO, ref="45")
 
 # Create dataframe
-slc.dtf <- temp1
+slc.pretrial.dtf <- temp1
 
-cache('slc.dtf')
-
-
+cache('slc.pretrial.dtf')
 
 
-### OK to here ###
+#####################
+##### PROBATION #####
+#####################
 
-#########################################################
-### TEXT LEVEL: WHICH PRETRIAL USER MSGS GET REPLIES? ###
-#########################################################
+# outcome data
 
-client_messages$client_id <- as.factor(as.character(client_messages$client_id))
-user_messages$client_id <- as.factor(as.character(user_messages$client_id))
+probation_outcomes <- all_messages %>% filter(department_id == 1) %>% 
+  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
 
-first_client_reply <- client_messages %>% group_by(client_id) %>% summarize(min_time = min(send_at_num)) # time of first client msg
+probation_outcomes$discharge_cat <- factor(probation_outcomes$discharge_cat)
+levels(probation_outcomes$discharge_cat) <- c(FALSE, TRUE)
 
-temp2 <- user_messages
+names(probation_outcomes)[8] <- "supervision_failure"
 
-temp2 <- merge(temp2, first_client_reply, by = c("client_id"))
+table(probation_outcomes$supervision_failure) # 8% -- but this is the percentage of msgs, not percentage of relationships...
 
-setdiff(first_client_reply$client_id, user_messages$client_id)
-setdiff(first_client_reply$client_id, temp2$client_id)
+probation_relationships <- unique(probation_outcomes[,c("client_id","user_id","supervision_failure","end_dt_num")])
+
+table(probation_relationships$supervision_failure) # 17% ???
+
+# quick check
+t <- salt.lake.discharges %>% filter(agcy_desc == "PROBATION SERVICES") %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+table(t$discharge_cat) # 26% failure rate
+# why is probation failure rate so much lower in matched data than in outcome data?
+# why is matched failure rate so much lower in probation than in pretrial?
+
+all_probation_msgs <- all_messages %>% filter(department_id == 1)
+
+# Number of client messages
+client_msg_count <- aggregate(as.numeric(all_probation_msgs$inbound == "True"), 
+                                by = list(all_probation_msgs$client_id, all_probation_msgs$user_id, all_probation_msgs$end_dt_num),
+                                FUN = sum)
+colnames(client_msg_count) <- c("client_id", "user_id","end_dt_num", "client_msg_count")
+  
+# Number of user messages
+user_msg_count <- aggregate(as.numeric(all_probation_msgs$inbound == "False"), 
+                              by = list(all_probation_msgs$client_id, all_probation_msgs$user_id, all_probation_msgs$end_dt_num),
+                              FUN = sum)
+colnames(user_msg_count) <- c("client_id", "user_id","end_dt_num", "user_msg_count")
+
+# Length of client time on CC (for normalization)
+time_on_cc <- all_messages %>% mutate(secs_on_cc = end_dt_num - client_created_at_num)
+
+summary(time_on_cc$secs_on_cc) # why are so many of these values negative?
+View(probation_outcomes[,c("client_id","user_id","end_dt","client_created_at")])
+# right, because CC was restarted on 4/16/2018...
+
+all_messages %>% summarize(min(send_at))
+all_messages %>% summarize(min(client_created_at))
+# there are messages that are much older than the cliented_created_at date
+# therefore use first msg send_at as beginning of relationship instead
+
+time_on_cc <- all_messages %>% mutate(secs_on_cc = end_dt_num - send_at_num)
+
+summary(time_on_cc$secs_on_cc) # much better
+
+time_on_cc$hrs_on_cc <- time_on_cc$secs_on_cc/3600
+
+time_on_cc$months_on_cc <- time_on_cc$hrs_on_cc/725
+
+time_on_cc <- time_on_cc %>% filter(department_id == 1)
+  
+time_on_cc <- time_on_cc[,c("client_id","user_id","months_on_cc","end_dt_num")]
+
+time_on_cc <- time_on_cc %>% group_by(client_id,user_id,end_dt_num) %>%
+  summarize(time_on_cc = max(months_on_cc))
+
+slc.probation.dtf <- inner_join(time_on_cc, user_msg_count, by = c("client_id","user_id","end_dt_num"))
+
+slc.probation.dtf <- inner_join(slc.probation.dtf,client_msg_count, by = c("client_id","user_id","end_dt_num"))
+
+slc.probation.dtf <- slc.probation.dtf %>% mutate(user_msgs_per_month = user_msg_count/time_on_cc,
+                                                  client_msgs_per_month = client_msg_count/time_on_cc)
+
+cache('slc.probation.dtf')
+
+
+#######################################################################################################
+###### COME BACK TO THIS IF DECIDE TO EXAMINE QUALITIES OF PRETRIAL MSGS THAT RECEIVE RESPONSES #######
+#######################################################################################################
+
+pretrial_client_msgs <- client_messages %>% filter(department_id == 2) %>% 
+  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+
+pretrial_client_msgs$client_id <- as.factor(as.character(pretrial_client_msgs$client_id))
+
+pretrial_user_msgs <- user_messages %>% filter(department_id == 2) %>% 
+  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+
+pretrial_user_msgs$client_id <- as.factor(as.character(pretrial_user_msgs$client_id))
+
+first_client_reply <- pretrial_client_msgs %>% group_by(client_id, end_dt_num) %>% summarize(min_time = min(send_at_num)) # time of first client msg
+
+temp2 <- pretrial_user_msgs
+
+temp2 <- merge(temp2, first_client_reply, by = c("client_id","end_dt_num"))
+
+#setdiff(first_client_reply$client_id, pretrial_user_msgs$client_id)
+#setdiff(first_client_reply$client_id, temp2$client_id)
 
 temp2 <- temp2 %>% filter(send_at_num < min_time) # PO messages leading to a client reply
 
@@ -566,23 +647,12 @@ setdiff(first_client_reply$client_id, temp2$client_id) # there are still about 1
 
 msgs_leading_to_reply <- temp2
 
-first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id) %>% slice(which.max(send_at_num)) # the first user msg in a relationship that received a client reply (might be initial msg, might not)
-
-# number_msgs_to_reply <- aggregate(msgs_leading_to_reply$client_id, by = list(msgs_leading_to_reply$client_id), FUN = length) # how many user msgs before the first client msg
-# colnames(number_msgs_to_reply) <- c("client_id", "number_to_reply")
-
-# number_msgs_to_reply$reply_to_initial <- as.numeric(number_msgs_to_reply$number_to_reply == 1) # client replied to first user msg (T/F)
-
-# ultimately_replied <- merge(ultimately_replied, number_msgs_to_reply, by = c("client_id")) # all user msgs that eventually received a reply
-
-# initial_msg_replied <- filter(first_msg_replied, reply_to_initial == 1) # initial user msgs that received a client reply
-
-## NEW APPROACH
+first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id, end_dt_num) %>% slice(which.max(send_at_num)) # the first user msg in a relationship that received a client reply (might be initial msg, might not)
 
 # indicator: is this user msg an initial msg? 
 
-initial_msg <- user_messages %>% group_by(client_id) %>% summarize(initial_msg = min(send_at_num))
-temp4 <- merge(user_messages, initial_msg, by = c("client_id"))
+pretrial_initial_msg <- pretrial_user_msgs %>% group_by(client_id, end_dt_num) %>% summarize(initial_msg = min(send_at_num))
+temp4 <- merge(pretrial_user_msgs, pretrial_initial_msg, by = c("client_id","end_dt_num"))
 temp4 <- temp4 %>% mutate(initial_msg_indicator = case_when(initial_msg == send_at_num ~ 1,
                                                             initial_msg != send_at_num ~ 0))
 
@@ -594,12 +664,16 @@ msg_replied$msg_replied_i <- 1
 temp4 <- merge(temp4, msg_replied, by = c("client_id", "send_at_num"), all.x = TRUE, all.y = TRUE)
 temp4$msg_replied_i[is.na(temp4$msg_replied_i)] <- 0
 
-temp4 <- temp4[c("client_id", "user_id", "id", "body", "inbound", 
+temp4 <- temp4[c("client_id", "user_id", "body", "inbound", 
                  "user_first_name", "user_last_name", "client_first_name", "client_last_name",
                  "created_at", "created_at_backup", "created_at_num", 
                  "send_at", "send_at_backup", "send_at_num",
                  "send_at_DoW", "send_at_ToD_bins", "initial_msg_indicator", "msg_replied_i", 
-                 "future_appointment_date", "scheduled_diff", "user_msg_length")]
+                 "has_future_date", "scheduled_diff", "user_msg_length")]
+
+################
+## ok to here ##
+################
 
 # add variables of interest
 
@@ -702,7 +776,7 @@ temp5$court_date_reminder[is.na(temp5$court_date_reminder)] <- 0
 
 ## message similarity
 
-temp6 <- user_messages %>% full_join(user_messages, by = "user_id") 
+temp6 <- pretrial_user_msgs %>% full_join(pretrial_user_msgs, by = "user_id") 
 temp7 <- temp6 %>% filter(client_id.x != client_id.y)
 
 temp7$reuse_score <- stringsim(as.character(temp7$body.x), as.character(temp7$body.y)) # this takes a very long time to run

@@ -1,0 +1,32 @@
+---
+title: "ClientComm Data Analysis 5"
+author: "Gwen Rino and Eric Giannella"
+date: "9/19/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## OVERVIEW AND KEY FINDINGS  
+
+We examined Salt Lake County pretrial data for associations between qualities of a client/user relationship and the supervision outcome (success or failure). The goal of this analysis is to compare SLC findings with the Baltimore findings reported in ClientComm Data Analysis 3 to see if similar conclusions hold in different jurisdictions.  
+
+There are 491 matched pretrial relationships in the SLC dataset, 206 of which resulted in supervision failure.  
+
+**Key findings**  
+
+1. Relationships in which the client participated by sending any messages at all had a significantly higher chance of a positive supervision outcome than relationships in which a client sent no messages. This outcome is similar but not identical to the Baltimore finding that modest client participation increases the chance of supervision success, and that higher levels of client participation are associated with a bigger increase in the chance of success.  
+
+2. The more times a user's message included a future appointment date, the more likely the client was to have a positive supervision outcome. This association was statistically significant. We did not find a similar correlation in the Baltimore data.  
+
+3. Client participation and inclusion of future appointment dates are the only variables that are significantly associated with positive outcomes.  
+
+## ANALYTICAL STORY  
+
+Client participation in a texting relationship matters. A Salt Lake County client who never texts has a 47.7% chance of supervision failure; a client who texts once or more has a 36.8% chance of failure. Client participation is associated with a 22.9% reduction in the chance of supervision failure.  
+
+Clients whose POs include reminders of future appointment dates in their texts have a higher chance of success on supervision. A Salt Lake County client who receives no reminders of future appointment dates has a 46.5% chance of supervision failure; a client who receives 5 reminders over the course of a supervision relationship has a 36.5% chance of failure. Reminders of future appointment dates are associated with a 21.5% reduction in the chance of supervision failure.  
+
+Use of the message scheduling feature seems to be relatively uncommon in SLC. While its use is positively associated with the chance of a positive outcome, this association is not statistically significant. Other variables (time of day, day of week, and length of PO message) show no relationship to supervision outcome. 

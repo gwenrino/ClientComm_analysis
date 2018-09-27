@@ -614,6 +614,10 @@ slc.probation.dtf <- inner_join(slc.probation.dtf,client_msg_count, by = c("clie
 slc.probation.dtf <- slc.probation.dtf %>% mutate(user_msgs_per_month = user_msg_count/time_on_cc,
                                                   client_msgs_per_month = client_msg_count/time_on_cc)
 
+probation_outcomes <- unique(probation_outcomes[,c(1,2,6,8)])
+
+slc.probation.dtf <- inner_join(slc.probation.dtf,probation_outcomes, by = c("client_id","user_id","end_dt_num"))
+
 cache('slc.probation.dtf')
 
 

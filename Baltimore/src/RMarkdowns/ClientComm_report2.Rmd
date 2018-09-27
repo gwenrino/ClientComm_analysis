@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## OVERVIEW AND KEY OUTCOMES
 
-In our continued work on the Baltimore ClientComm data, we focused on refining our construction of variables and applying them to all the available data (1571 relationshipships, 118 of which resulted in supervision failure) in order to build a more meaningful, robust model.
+In our continued work on the Baltimore ClientComm data, we focused on refining our construction of variables and applying them to all the available data (1571 relationships, 118 of which resulted in supervision failure) in order to build a more meaningful, robust model.
 
 ### Key Outcomes
 

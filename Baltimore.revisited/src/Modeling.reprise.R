@@ -36,6 +36,24 @@ summary(model3)
 # 1069.8, both variables sig
 
 
+# more explore (for Manya 10/2)
+
+modela <- glmer(supervision_failure ~ (1 | PO) +
+                  (client_msg_count > 0)  + future_appointment_date,
+                data = cc.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
+summary(modela)
+
+modelb <- glmer(supervision_failure ~ (1 | PO) +
+                  (client_msg_count > 0)  + (max_scheduled_diff > 0) + future_appointment_date,
+                data = cc.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
+summary(modelb)
+
+modelc <- glmer(supervision_failure ~ (1 | PO) + user_msg_count +
+                  (client_msg_count > 0)  + future_appointment_date,
+                data = cc.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
+summary(modelc)
+
+
 # REPORT 4
 
 initial_msgs_qualities <- user_msgs_qualities[user_msgs_qualities$initial_msg_indicator == 1,] # filter for initial messages

@@ -79,6 +79,48 @@ slc.matched <- names_join_match[,c("client_id","user_id.x","agcy_desc","departme
 # deduping 
 slc.matched <- unique(slc.matched)
 
+
+#####
+# Data sets for comparison of failure rates for CC and non-CC clients
+
+unmatched_outcomes <- subset(salt.lake.discharges, !(ofndr_num %in% names_join_match$ofndr_num.x))
+unmatched_outcomes <- subset(unmatched_outcomes, !(ofndr_num %in% names_join_match$ofndr_num.y))
+unmatched_outcomes <- unique(unmatched_outcomes)
+unmatched_outcomes <- unmatched_outcomes[,c("ofndr_num","agcy_desc","end_dt","discharge_cat")]
+unmatched_outcomes <- unmatched_outcomes %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+levels(unmatched_outcomes$discharge_cat)
+unmatched_outcomes$discharge_cat <- factor(unmatched_outcomes$discharge_cat)
+levels(unmatched_outcomes$discharge_cat) <- c(FALSE, TRUE)
+names(unmatched_outcomes)[4] <- "supervision_failure"
+
+matched_outcomes <- subset(salt.lake.discharges, ofndr_num %in% names_join_match$ofndr_num.x)
+matched_outcomes <- subset(matched_outcomes, ofndr_num %in% names_join_match$ofndr_num.y)
+matched_outcomes <- unique(matched_outcomes)
+matched_outcomes <- matched_outcomes[,c("ofndr_num","agcy_desc","end_dt","discharge_cat")]
+matched_outcomes <- matched_outcomes %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+levels(matched_outcomes$discharge_cat)
+matched_outcomes$discharge_cat <- factor(matched_outcomes$discharge_cat)
+levels(matched_outcomes$discharge_cat) <- c(FALSE, TRUE)
+names(matched_outcomes)[4] <- "supervision_failure"
+
+
+CC_pretrial_outcomes <- matched_outcomes %>% filter(agcy_desc == "PRETRIAL SERVICES")
+
+non_CC_pretrial_outcomes <- unmatched_outcomes %>% filter(agcy_desc == "PRETRIAL SERVICES") 
+
+CC_probation_outcomes <- matched_outcomes %>% filter(agcy_desc == "PROBATION SERVICES") 
+
+non_CC_probation_outcomes <- unmatched_outcomes %>% filter(agcy_desc == "PROBATION SERVICES") 
+
+
+cache('CC_pretrial_outcomes')
+cache('non_CC_pretrial_outcomes')
+cache('CC_probation_outcomes')
+cache('non_CC_probation_outcomes')
+
+
+##### Working out the department_id/agcy confusion in the matched data
+
 slc.matched[slc.matched$client_id==277,]
 filter(slc.matched, slc.matched$user_id.x == 7)
 filter(ofndr_num_join, ofndr_num_join$user_id.x == 13)
@@ -89,98 +131,6 @@ slc.matched[,c(2,4)] %>% group_by(user_id.x) %>% summarize(n_distinct(department
 aggregate(department_id ~ user_id.x, slc.matched, function(x) length(unique(x)))
 
 unique(slc.matched$user_id.x[slc.matched$department_id == 1])
-
-# find clients who have more than one outcome (sometimes different user for each outcome, sometimes not)
-# multiple_client_appearances <- slc.matched %>% group_by(client_id) %>% add_count() %>% filter(n != 1)
-# names(multiple_client_appearances)[13] <- "count_client_appearances"
-
-# merge messages with these clients
-# mult_client_msgs <- merge(messages, multiple_client_appearances, by.x = c("client_id", "user_id"), by.y = c("client_id", "user_id.x"), all.x = TRUE, all.y = TRUE)
-# mult_client_msgs <- mult_client_msgs %>% filter(!(is.na(count_client_appearances)))
-# for client/user pairs with more than one outcome, messages are now doubled (associated with each outcome)
-
-## which messages should be associated with each outcome? 
-
-# find last message before outcome date 
-# mult_client_msgs$add_hrs_min_sec <- paste(as.character(mult_client_msgs$end_dt), "12:00:00 EDT", sep=" ")
-
-# mult_client_msgs$end_dt_converted <- as.POSIXct(mult_client_msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
-
-# mult_client_msgs$end_dt_num <- as.numeric(mult_client_msgs$end_dt_converted)
-
-# mult_client_msgs$time_diff <- mult_client_msgs$end_dt_num - mult_client_msgs$send_at_num # time between outcome and message
-
-# mult_client_msgs <- mult_client_msgs %>% filter(time_diff > 0) # only messages before the outcome
-
-# last_msg <- mult_client_msgs %>% group_by(client_id, end_dt_num) %>% summarize(time_last_msg_to_outcome = min(time_diff))
-# last_msg$last_msg_i <- 1 # last message indicator
-
-# find first message in relationship/outcome
-# first_msg_to_client <- mult_client_msgs %>% group_by(client_id, end_dt_num) %>% summarize(time_first_msg_to_client = max(time_diff))
-# first_msg_to_client$first_msg_to_client_i <- 1 # first message indicator -- but this is WRONG for clients with more than one outcome
-
-# mult_client_msgs <- merge(messages, multiple_client_appearances, by.x = c("client_id", "user_id"), by.y = c("client_id", "user_id.x"), all.x = TRUE, all.y = TRUE)
-# mult_client_msgs <- mult_client_msgs %>% filter(!(is.na(count_client_appearances)))
-
-# mult_client_msgs$add_hrs_min_sec <- paste(as.character(mult_client_msgs$end_dt), "12:00:00 EDT", sep=" ")
-
-# mult_client_msgs$end_dt_converted <- as.POSIXct(mult_client_msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
-
-# mult_client_msgs$end_dt_num <- as.numeric(mult_client_msgs$end_dt_converted)
-
-# mult_client_msgs$time_diff <- mult_client_msgs$end_dt_num - mult_client_msgs$send_at_num 
-
-# mult_client_msgs_find_breaks <- mult_client_msgs %>% filter(time_diff < 0) # only messages after the outcome
-
-# first_msg_after_outcome <- mult_client_msgs_find_breaks %>% group_by(client_id, end_dt_num) %>% summarize(first_msg_after_outcome = max(time_diff))
-# first_msg_after_outcome$first_msg_after_outcome_i <- 1 # max negative value is the first message of the NEXT outcome (but how to affix this value to next outcome?)
-# client_end_date_nums <- unique(mult_client_msgs[,c(1,37)])
-
-# client_end_date_nums <- subset(client_end_date_nums, !is.na(end_dt_num))
-
-# mult_client_msgs <- merge(messages, multiple_client_appearances, by.x = c("client_id", "user_id"), by.y = c("client_id", "user_id.x"), all.x = TRUE, all.y = TRUE)
-# mult_client_msgs <- mult_client_msgs %>% filter(!(is.na(count_client_appearances)))
-
-# mult_client_msgs$add_hrs_min_sec <- paste(as.character(mult_client_msgs$end_dt), "12:00:00 EDT", sep=" ")
-
-# mult_client_msgs$end_dt_converted <- as.POSIXct(mult_client_msgs$add_hrs_min_sec, format = "%m/%d/%y %H:%M:%S", tz="EDT")
-
-# mult_client_msgs$end_dt_num <- as.numeric(mult_client_msgs$end_dt_converted)
-
-# mult_client_msgs <- mult_client_msgs %>% filter(!is.na(X))
-
-# outcome_msg_time_range <- merge(last_msg, first_msg, by = c("client_id", "end_dt_num"))
-# class(outcome_msg_time_range$date_msgs_end_num)
-
-# outcome_msg_time_range$date_msgs_begin_num <- outcome_msg_time_range$end_dt_num - (outcome_msg_time_range$time_first_msg_to_outcome+3600)
-# outcome_msg_time_range$date_msgs_end_num <- outcome_msg_time_range$end_dt_num - (outcome_msg_time_range$time_last_msg_to_outcome-3600)
-
-# mult_client_msgs_w_range <- merge(mult_client_msgs, outcome_msg_time_range, by = c("client_id", "end_dt_num"))
-# names(mult_client_msgs_w_range)
-# mult_client_msgs_w_range$date_msgs_begin_num <- as.numeric(as.character(mult_client_msgs_w_range$date_msgs_begin_num))
-# mult_client_msgs_w_range$date_msgs_end_num <- as.numeric(as.character(mult_client_msgs_w_range$date_msgs_end_num))
-
-# mult_client_msgs_subset_by_outcome <- subset(mult_client_msgs_w_range, send_at_num < date_msgs_end_num)
-
-# mult_client_msgs <- merge(mult_client_msgs, last_msg, by.x = c("client_id", "time_diff"), 
-#                           by.y = c("client_id", "last_msg"), all.x = TRUE, all.y = TRUE)  
-# mult_client_msgs$last_msg_i[is.na(mult_client_msgs$last_msg_i)] <- 0
-
-# mult_client_msgs <- merge(mult_client_msgs, first_msg, by.x = c("client_id", "time_diff"), 
-#                           by.y = c("client_id", "first_msg"), all.x = TRUE, all.y = TRUE)  
-# mult_client_msgs$first_msg_i[is.na(mult_client_msgs$first_msg_i)] <- 0
-
-# View(mult_client_msgs[,c(1,3,6,13,32,45,47)])
-# This seems fine for user/client pairs with one outcome.
-# But with two outcomes for same pair, things are weird.
-# user 7/client 277
-# user 7/client 4198
-# user 11/client 3498
-# Msg dates don't seem to make sense with outcome dates. (last msg date may be months before outcome)
-# Msgs may be repeated for both outcomes. (then first and last are wrong)
-# Sometimes both outcomes get same last msg because there are no msgs between first and second outcome
-
-##
 
 client_end_date_nums <- unique(mult_client_msgs[,c(1,37)])
 

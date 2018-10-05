@@ -68,6 +68,12 @@ model11 <- glmer(supervision_failure ~ (1 | PO) + (client_msg_count > 0) + futur
                  data = slc.pretrial.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
 summary(model11) # AIC 
 
+# DoW
+model12 <- glmer(supervision_failure ~ (1 | PO) + (client_msg_count > 0) + future_appointment_date +
+                   Sun_messages + Mon_messages + Tue_messages + Wed_messages + Thu_messages + Fri_messages + Sat_messages,
+                 data = slc.pretrial.dtf, family = binomial, control = glmerControl(optimizer = "bobyqa"))
+summary(model12) # AIC 
+
 
 
 ## Effect size client_msg_count

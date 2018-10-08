@@ -102,15 +102,49 @@ p2.preds
 
 #####
 
-# Failure rates
+# Compare CC and non-CC failure rates
+nrow(slc.pretrial.dtf[slc.pretrial.dtf$supervision_failure == TRUE,])/nrow(slc.pretrial.dtf) # 41.9% of 491 outcomes
+nrow(non_CC_pretrial_outcomes[non_CC_pretrial_outcomes$supervision_failure == TRUE,])/nrow(non_CC_pretrial_outcomes) # 36.5% of 3667 outcomes
 
-nrow(CC_pretrial_outcomes[CC_pretrial_outcomes$supervision_failure == TRUE,])/nrow(CC_pretrial_outcomes) # 32.4% of 259 outcomes
-nrow(non_CC_pretrial_outcomes[non_CC_pretrial_outcomes$supervision_failure == TRUE,])/nrow(non_CC_pretrial_outcomes) # 37.5% of 3234 outcomes
+nrow(slc.probation.dtf[slc.probation.dtf$supervision_failure == TRUE,])/nrow(slc.probation.dtf) # 17.0% of 312 outcomes
+nrow(non_CC_probation_outcomes[non_CC_probation_outcomes$supervision_failure == TRUE,])/nrow(non_CC_probation_outcomes) # 28.2% of 1088 outcomes
 
-nrow(CC_probation_outcomes[CC_probation_outcomes$supervision_failure == TRUE,])/nrow(CC_probation_outcomes) # 28.0% of 132 outcomes
-nrow(non_CC_probation_outcomes[non_CC_probation_outcomes$supervision_failure == TRUE,])/nrow(non_CC_probation_outcomes) # 26.8% of 913 outcomes
+# Among CC clients, effect of # of client msgs for typical usage POs
 
+# Pretrial
 
+summary(slc.pretrial.dtf$user_msg_count) # middle 50% usage is between 2 and 6
+pretrial_typical_PO_usage <- slc.pretrial.dtf[slc.pretrial.dtf$user_msg_count >= 2 & slc.pretrial.dtf$user_msg_count <= 6,]
 
+nrow(pretrial_typical_PO_usage[pretrial_typical_PO_usage$supervision_failure == TRUE,])/
+  nrow(pretrial_typical_PO_usage) # 42.3% of 286 observations
 
+pretrial_typical_PO_0_client_usage <- pretrial_typical_PO_usage[pretrial_typical_PO_usage$client_msg_count == 0,]
+pretrial_typical_PO_not0_client_usage <- pretrial_typical_PO_usage[pretrial_typical_PO_usage$client_msg_count != 0,]
 
+nrow(pretrial_typical_PO_0_client_usage[pretrial_typical_PO_0_client_usage$supervision_failure == TRUE,])/
+  nrow(pretrial_typical_PO_0_client_usage) # 45.8% of 144 observations
+
+nrow(pretrial_typical_PO_not0_client_usage[pretrial_typical_PO_not0_client_usage$supervision_failure == TRUE,])/
+  nrow(pretrial_typical_PO_not0_client_usage) # 38.7% of 142 observations
+
+# Probation
+
+summary(slc.probation.dtf$user_msgs_per_month) # middle 50% usage is between 1.6 and 4.75
+probation_typical_PO_usage <- slc.probation.dtf[slc.probation.dtf$user_msgs_per_month >= 1.6 & slc.probation.dtf$user_msgs_per_month <= 4.75,]
+
+nrow(probation_typical_PO_usage[probation_typical_PO_usage$supervision_failure == TRUE,])/
+  nrow(probation_typical_PO_usage) # 13.3% of 158 observations
+
+probation_typical_PO_0_client_usage <- probation_typical_PO_usage[probation_typical_PO_usage$client_msgs_per_month == 0,]
+probation_typical_PO_low_client_usage <- probation_typical_PO_usage[probation_typical_PO_usage$client_msgs_per_month < 1.5,]
+probation_typical_PO_not0_client_usage <- probation_typical_PO_usage[probation_typical_PO_usage$client_msgs_per_month != 0,]
+
+nrow(probation_typical_PO_0_client_usage[probation_typical_PO_0_client_usage$supervision_failure == TRUE,])/
+  nrow(probation_typical_PO_0_client_usage) # 60% of 5 observations
+
+nrow(probation_typical_PO_low_client_usage[probation_typical_PO_low_client_usage$supervision_failure == TRUE,])/
+  nrow(probation_typical_PO_low_client_usage) # 27.8% of 36 observations
+
+nrow(probation_typical_PO_not0_client_usage[probation_typical_PO_not0_client_usage$supervision_failure == TRUE,])/
+  nrow(probation_typical_PO_not0_client_usage) # 11.7% of 153 observations

@@ -74,49 +74,11 @@ View(unique(names_join_match[(names_join_match$user_id.x == 7 & names_join_match
 names(names_join_match)
 slc.matched <- names_join_match[,c("client_id","user_id.x","agcy_desc","department_id","end_dt",
                                    "discharge_desc","discharge_cat","client_created_at","client_created_at_backup",
-                                   "client_created_at_num","active","ofndr_num_match_i")]
+                                   "client_created_at_num","active","ofndr_num_match_i","ofndr_num.x")]
 
 # deduping 
 slc.matched <- unique(slc.matched)
 
-
-#####
-# Data sets for comparison of failure rates for CC and non-CC clients
-
-unmatched_outcomes <- subset(salt.lake.discharges, !(ofndr_num %in% names_join_match$ofndr_num.x))
-unmatched_outcomes <- subset(unmatched_outcomes, !(ofndr_num %in% names_join_match$ofndr_num.y))
-unmatched_outcomes <- unique(unmatched_outcomes)
-unmatched_outcomes <- unmatched_outcomes[,c("ofndr_num","agcy_desc","end_dt","discharge_cat")]
-unmatched_outcomes <- unmatched_outcomes %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
-levels(unmatched_outcomes$discharge_cat)
-unmatched_outcomes$discharge_cat <- factor(unmatched_outcomes$discharge_cat)
-levels(unmatched_outcomes$discharge_cat) <- c(FALSE, TRUE)
-names(unmatched_outcomes)[4] <- "supervision_failure"
-
-matched_outcomes <- subset(salt.lake.discharges, ofndr_num %in% names_join_match$ofndr_num.x)
-matched_outcomes <- subset(matched_outcomes, ofndr_num %in% names_join_match$ofndr_num.y)
-matched_outcomes <- unique(matched_outcomes)
-matched_outcomes <- matched_outcomes[,c("ofndr_num","agcy_desc","end_dt","discharge_cat")]
-matched_outcomes <- matched_outcomes %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
-levels(matched_outcomes$discharge_cat)
-matched_outcomes$discharge_cat <- factor(matched_outcomes$discharge_cat)
-levels(matched_outcomes$discharge_cat) <- c(FALSE, TRUE)
-names(matched_outcomes)[4] <- "supervision_failure"
-
-
-CC_pretrial_outcomes <- matched_outcomes %>% filter(agcy_desc == "PRETRIAL SERVICES")
-
-non_CC_pretrial_outcomes <- unmatched_outcomes %>% filter(agcy_desc == "PRETRIAL SERVICES") 
-
-CC_probation_outcomes <- matched_outcomes %>% filter(agcy_desc == "PROBATION SERVICES") 
-
-non_CC_probation_outcomes <- unmatched_outcomes %>% filter(agcy_desc == "PROBATION SERVICES") 
-
-
-cache('CC_pretrial_outcomes')
-cache('non_CC_pretrial_outcomes')
-cache('CC_probation_outcomes')
-cache('non_CC_probation_outcomes')
 
 
 ##### Working out the department_id/agcy confusion in the matched data
@@ -194,6 +156,7 @@ for (i in 1:n) {
 ### Strategy: attach matched outcomes to messages, separate by ranges, then filter to dates within 2 months of outcome date
 
 names(slc.matched)[2] <- "user_id"
+names(slc.matched)[13] <- "ofndr_num"
 
 matched.msgs <- merge(slc.matched, messages, by = c("client_id", "user_id"), all.x = FALSE, all.y = FALSE)
 
@@ -203,7 +166,7 @@ matched.msgs$end_dt_converted <- as.POSIXct(matched.msgs$add_hrs_min_sec, format
 
 matched.msgs$end_dt_num <- as.numeric(matched.msgs$end_dt_converted)
 
-client_id.end_dt_num.matched <- unique(matched.msgs[,c(1,36)])
+client_id.end_dt_num.matched <- unique(matched.msgs[,c(1,37)])
 
 end_dates_ids <- client_id.end_dt_num.matched %>% arrange(client_id, end_dt_num) %>% mutate(id = row_number())
 
@@ -294,13 +257,33 @@ matched.msgs.filtered <- matched.msgs.filtered %>%
   filter((agcy_desc == "PROBATION SERVICES" & department_id == 1) | (agcy_desc == "PRETRIAL SERVICES" & department_id == 2))
 
 # Drop unnecessary variables
-slc.messages <- matched.msgs.filtered[,c("client_id","user_id","department_id","agcy_desc","end_dt","end_dt_num",
+slc.messages <- matched.msgs.filtered[,c("client_id","ofndr_num","user_id","department_id","agcy_desc","end_dt","end_dt_num",
                                                   "discharge_desc","discharge_cat","client_created_at.x","client_created_at_backup.x",
                                                   "client_created_at_num.x","active","body","inbound","send_at","send_at_backup",
                                                   "send_at_num","dates_ext","created_at","created_at_backup","created_at_num")]
-names(slc.messages)[9] <- "client_created_at"
-names(slc.messages)[10] <- "client_created_at_backup"
-names(slc.messages)[11] <- "client_created_at_num"
+names(slc.messages)[10] <- "client_created_at"
+names(slc.messages)[11] <- "client_created_at_backup"
+names(slc.messages)[12] <- "client_created_at_num"
+
+
+#####
+# Data sets for comparison of failure rates for CC and non-CC clients
+
+unmatched_outcomes <- subset(salt.lake.discharges, !(ofndr_num %in% slc.messages$ofndr_num))
+unmatched_outcomes <- unmatched_outcomes[,c("ofndr_num","agcy_desc","end_dt","discharge_cat")]
+unmatched_outcomes <- unique(unmatched_outcomes)
+unmatched_outcomes <- unmatched_outcomes %>% filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+levels(unmatched_outcomes$discharge_cat)
+unmatched_outcomes$discharge_cat <- factor(unmatched_outcomes$discharge_cat)
+levels(unmatched_outcomes$discharge_cat) <- c(FALSE, TRUE)
+names(unmatched_outcomes)[4] <- "supervision_failure"
+
+non_CC_pretrial_outcomes <- unmatched_outcomes %>% filter(agcy_desc == "PRETRIAL SERVICES") 
+
+non_CC_probation_outcomes <- unmatched_outcomes %>% filter(agcy_desc == "PROBATION SERVICES") 
+
+cache('non_CC_pretrial_outcomes')
+cache('non_CC_probation_outcomes')
 
 
 ########################
@@ -418,12 +401,11 @@ DoW_message_count$Wkd_messages <- DoW_message_count$Sun_messages + DoW_message_c
 # Number of messages by time of day
 ToD_message <- spread(user_messages, send_at_ToD_bins, message_i, fill = 0)
 
-names(ToD_message)[27] <- "ToD_Missing"
+#names(ToD_message)[27] <- "ToD_Missing"
 
-ToD_message_count <- aggregate(cbind(ToD_message[,c("Night", "Morning", "Afternoon", "Evening", "ToD_Missing")]), by = list(ToD_message$client_id,
-                                                                                                                            ToD_message$user_id), FUN = sum)
+ToD_message_count <- aggregate(cbind(ToD_message[,c("Night", "Morning", "Afternoon", "Evening")]), by = list(ToD_message$client_id,ToD_message$user_id), FUN = sum)
 colnames(ToD_message_count) <- c("client_id","user_id", "Night_messages", "Morning_messages", "Afternoon_messages", 
-                                 "Evening_messages", "ToD_Missing_messages")
+                                 "Evening_messages")
 
 # Number of future appointment dates
 number_appt_reminders <- aggregate(user_messages$has_future_date, 
@@ -502,7 +484,7 @@ probation_outcomes <- all_messages %>% filter(department_id == 1) %>%
 probation_outcomes$discharge_cat <- factor(probation_outcomes$discharge_cat)
 levels(probation_outcomes$discharge_cat) <- c(FALSE, TRUE)
 
-names(probation_outcomes)[8] <- "supervision_failure"
+names(probation_outcomes)[9] <- "supervision_failure"
 
 table(probation_outcomes$supervision_failure) # 8% -- but this is the percentage of msgs, not percentage of relationships...
 
@@ -564,7 +546,7 @@ slc.probation.dtf <- inner_join(slc.probation.dtf,client_msg_count, by = c("clie
 slc.probation.dtf <- slc.probation.dtf %>% mutate(user_msgs_per_month = user_msg_count/time_on_cc,
                                                   client_msgs_per_month = client_msg_count/time_on_cc)
 
-probation_outcomes <- unique(probation_outcomes[,c(1,2,6,8)])
+probation_outcomes <- unique(probation_outcomes[,c(1,2,7,9)])
 
 slc.probation.dtf <- inner_join(slc.probation.dtf,probation_outcomes, by = c("client_id","user_id","end_dt_num"))
 

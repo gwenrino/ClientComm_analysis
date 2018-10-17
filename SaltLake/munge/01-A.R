@@ -553,6 +553,23 @@ slc.probation.dtf <- inner_join(slc.probation.dtf,probation_outcomes, by = c("cl
 cache('slc.probation.dtf')
 
 
+###################################################
+###### FOR INVESTIGATION OF HIGH PO MSG COUNT #####
+###################################################
+
+probation_msgs <- all_messages %>% filter(department_id == 1) %>% 
+  filter(discharge_cat == "SUCCESSFUL" | discharge_cat == "UNSUCCESSFUL")
+
+probation_msgs$discharge_cat <- factor(probation_msgs$discharge_cat)
+levels(probation_msgs$discharge_cat) <- c(FALSE, TRUE)
+
+names(probation_msgs)[9] <- "supervision_failure"
+
+probation_msgs <- probation_msgs %>% mutate(send_at_month = as.yearmon(send_at))
+
+cache('probation_msgs')
+
+
 #######################################################################################################
 ###### COME BACK TO THIS IF DECIDE TO EXAMINE QUALITIES OF PRETRIAL MSGS THAT RECEIVE RESPONSES #######
 #######################################################################################################
@@ -569,20 +586,21 @@ pretrial_user_msgs$client_id <- as.factor(as.character(pretrial_user_msgs$client
 
 first_client_reply <- pretrial_client_msgs %>% group_by(client_id, end_dt_num) %>% summarize(min_time = min(send_at_num)) # time of first client msg
 
-temp2 <- pretrial_user_msgs
-
-temp2 <- merge(temp2, first_client_reply, by = c("client_id","end_dt_num"))
+temp2 <- merge(pretrial_user_msgs, first_client_reply, by = c("client_id","end_dt_num"))
 
 #setdiff(first_client_reply$client_id, pretrial_user_msgs$client_id)
 #setdiff(first_client_reply$client_id, temp2$client_id)
 
 temp2 <- temp2 %>% filter(send_at_num < min_time) # PO messages leading to a client reply
 
-setdiff(first_client_reply$client_id, temp2$client_id) # there are still about 100 clients that don't come through into temp2
-# ground check looks ok -- 1113, 1230, 1339, 1383 all have first msg in relationship inbound
+setdiff(first_client_reply$client_id, temp2$client_id) # there are 15 clients that don't come through into temp2
+# ground check looks ok -- 1736, 2672, 2730, 2739 all have first msg in relationship inbound
 
 msgs_leading_to_reply <- temp2
 
+
+
+###### ok to here
 first_msg_replied <- msgs_leading_to_reply %>% group_by(client_id, end_dt_num) %>% slice(which.max(send_at_num)) # the first user msg in a relationship that received a client reply (might be initial msg, might not)
 
 # indicator: is this user msg an initial msg? 
@@ -606,10 +624,6 @@ temp4 <- temp4[c("client_id", "user_id", "body", "inbound",
                  "send_at", "send_at_backup", "send_at_num",
                  "send_at_DoW", "send_at_ToD_bins", "initial_msg_indicator", "msg_replied_i", 
                  "has_future_date", "scheduled_diff", "user_msg_length")]
-
-################
-## ok to here ##
-################
 
 # add variables of interest
 

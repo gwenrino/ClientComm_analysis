@@ -209,6 +209,44 @@ for (k in 0:5) {
 }
 colnames(pred.dtf) <- c("user_msgs_per_month","client_msgs_per_month","violation_probability")
 
+pred.dtf
+
+# Visualization
+preds <- ggplot(pred.dtf, aes(x = user_msgs_per_month)) +
+  geom_point(aes(y = violation_probability, color = "violation_probability"))
+
+preds
+
+
+## Effect size
+
+pima.relationships_with_failures.0 <- pima.relationships_with_failures
+pima.relationships_with_failures.0$user_msgs_per_month <- 0
+
+pima.relationships_with_failures.1 <- pima.relationships_with_failures
+pima.relationships_with_failures.1$user_msgs_per_month <- 1
+
+pima.relationships_with_failures.4 <- pima.relationships_with_failures
+pima.relationships_with_failures.4$user_msgs_per_month <- 4
+
+
+predictions_user_msgs_0 <- predict.SuperLearner(sl, newdata = pima.relationships_with_failures.0, onlySL=TRUE)
+predictions_user_msgs_1 <- predict.SuperLearner(sl, newdata = pima.relationships_with_failures.1, onlySL=TRUE)
+predictions_user_msgs_4 <- predict.SuperLearner(sl, newdata = pima.relationships_with_failures.4, onlySL=TRUE)
+
+
+mean(predictions_user_msgs_0) # 
+mean(predictions_user_msgs_1) # 
+mean(predictions_user_msgs_4) # 
+
+
+
+
+
+
+
+###
+
 pima.tv3.h2 <- gam(violation_i ~ log(client_msgs_per_month+1) * poly(user_msgs_per_month,2) +
                      months_on_cc + as.factor(user_id),
                    data=reduced_pima,
@@ -239,5 +277,9 @@ colnames(pred.dtf) <- c("user_msgs_per_month","client_msgs_per_month","violation
 p1.preds <- ggplot(pred.dtf, aes(x = user_msgs_per_month)) +
   geom_point(aes(y = violation_probability, color = "violation_probability"))
 
+
+###
+
+# Effect size
 
 
